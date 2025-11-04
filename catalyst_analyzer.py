@@ -108,7 +108,6 @@ class CatalystAnalyzer:
         dynamic_threshold = max(dynamic_threshold, self.min_threshold)
         
         is_significant = abs(change_pct) >= dynamic_threshold
-        print("is_significant: ", is_significant)
         direction = "UP" if change_pct > 0 else "DOWN"
         
         logger.info(f"Mouvement: {change_pct:.2f}%, Moyenne: {avg_move:.2f}%, Seuil: {dynamic_threshold:.2f}%, Significatif: {is_significant}")
@@ -140,6 +139,10 @@ class CatalystAnalyzer:
 
     def analyze_catalyst_with_ai(self, symbol, change_pct, sector, news, volume_spike) -> Dict:
         """Analyse un catalyseur via l'API Claude"""
+        # Si pas d'API key, passer directement au fallback
+        if not self.api_key:
+            return self._fallback_analysis(change_pct, volume_spike, len(news))
+            
         try:
             news_text = "\n".join(news) if news else "Aucune news récente"
             prompt = f"""Analyse ce mouvement boursier et retourne UNIQUEMENT un JSON valide:

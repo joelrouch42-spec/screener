@@ -1,0 +1,38 @@
+# Configuration du Scanner - Plus de symboles à surveiller
+# Format: SYMBOL PROVIDER
+# PROVIDER peut être: auto, yahoo, polygon, alphavantage
+
+# Tech Stocks
+NVDA auto
+AAPL auto
+MSFT auto
+GOOGL auto
+TSLA auto
+META auto
+AMD auto
+NFLX auto
+
+# Biotech/Pharma
+RYTM auto
+GILD auto
+MRNA auto
+PFE auto
+JNJ auto
+
+# Finance
+JPM auto
+BAC auto
+GS auto
+
+# Crypto-related
+COIN auto
+MSTR auto
+
+# Energy
+XOM auto
+CVX auto
+
+# Small/Mid caps (plus volatiles)
+VSME auto
+SPCE auto
+PLTR auto

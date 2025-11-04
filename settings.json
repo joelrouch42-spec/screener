@@ -46,11 +46,21 @@
     "line_opacity": 0.6,
     "description": "Paramètres support/résistance"
   },
+  "breakout": {
+    "min_move_percent": 1.0,
+    "volume_spike_threshold": 1.5,
+    "description": "Seuils pour alertes breakout - min_move_percent: mouvement minimum en %, volume_spike_threshold: volume requis vs moyenne"
+  },
   "server": {
     "port": 8050,
     "host": "0.0.0.0",
     "debug": false,
     "description": "Paramètres serveur web"
+  },
+  "logging": {
+    "debug": false,
+    "alerts_only": true,
+    "description": "Contrôle des printouts - alerts_only=true pour voir que les alertes et erreurs"
   },
   "chart": {
     "margin_top": 50,

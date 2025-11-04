@@ -209,7 +209,8 @@ class YahooFinanceProvider(DataProvider):
 class MultiSourceDataProvider:
     """Orchestrates multiple data providers with fallback"""
     
-    def __init__(self, polygon_key=None, alphavantage_key=None, use_ibkr=False):
+    def __init__(self, polygon_key=None, alphavantage_key=None, use_ibkr=False, debug=False):
+        self.debug = debug
         self.providers = []
         
         # IBKR désactivé temporairement (abonnement requis)
@@ -228,9 +229,11 @@ class MultiSourceDataProvider:
         for provider in self.providers:
             if provider.is_available():
                 self.available_providers.append(provider)
-                print(f"✅ {provider.__class__.__name__} disponible")
+                if self.debug:
+                    print(f"✅ {provider.__class__.__name__} disponible")
             else:
-                print(f"❌ {provider.__class__.__name__} non disponible")
+                if self.debug:
+                    print(f"❌ {provider.__class__.__name__} non disponible")
     
     def fetch_data(self, symbol, days=80, period=60):
         """Try each provider until one succeeds"""
@@ -238,12 +241,15 @@ class MultiSourceDataProvider:
         
         for provider in self.available_providers:
             try:
-                print(f"🔄 Tentative {provider.__class__.__name__}...")
+                if self.debug:
+                    print(f"🔄 Tentative {provider.__class__.__name__}...")
                 df = provider.fetch_data(symbol, days, period)
-                print(f"✅ Données récupérées via {provider.__class__.__name__}")
+                if self.debug:
+                    print(f"✅ Données récupérées via {provider.__class__.__name__}")
                 return df, provider
             except Exception as e:
-                print(f"❌ {provider.__class__.__name__} échoué: {e}")
+                if self.debug:
+                    print(f"❌ {provider.__class__.__name__} échoué: {e}")
                 last_error = e
                 continue
         
@@ -256,12 +262,15 @@ class MultiSourceDataProvider:
             try:
                 price = preferred_provider.get_live_price(symbol)
                 if price:
-                    print(f"✅ Prix live via {preferred_provider.__class__.__name__}: ${price}")
+                    if self.debug:
+                        print(f"✅ Prix live via {preferred_provider.__class__.__name__}: ${price}")
                     return price
                 else:
-                    print(f"⚠️  {preferred_provider.__class__.__name__} n'a pas retourné de prix")
+                    if self.debug:
+                        print(f"⚠️  {preferred_provider.__class__.__name__} n'a pas retourné de prix")
             except Exception as e:
-                print(f"❌ {preferred_provider.__class__.__name__} live price error: {e}")
+                if self.debug:
+                    print(f"❌ {preferred_provider.__class__.__name__} live price error: {e}")
         
         # Fallback to all available providers
         for provider in self.available_providers:
@@ -270,14 +279,18 @@ class MultiSourceDataProvider:
             try:
                 price = provider.get_live_price(symbol)
                 if price:
-                    print(f"✅ Prix live via {provider.__class__.__name__}: ${price}")
+                    if self.debug:
+                        print(f"✅ Prix live via {provider.__class__.__name__}: ${price}")
                     return price
                 else:
-                    print(f"⚠️  {provider.__class__.__name__} n'a pas retourné de prix")
+                    if self.debug:
+                        print(f"⚠️  {provider.__class__.__name__} n'a pas retourné de prix")
             except Exception as e:
-                print(f"❌ {provider.__class__.__name__} live price error: {e}")
+                if self.debug:
+                    print(f"❌ {provider.__class__.__name__} live price error: {e}")
         
-        print(f"❌ Aucun provider n'a retourné de prix live pour {symbol}")
+        if self.debug:
+            print(f"❌ Aucun provider n'a retourné de prix live pour {symbol}")
         return None
 
 

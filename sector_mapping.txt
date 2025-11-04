@@ -4,4 +4,24 @@
 
 NVDA tech
 AAPL tech
+MSFT tech
+GOOGL tech
+META tech
+AMD tech
+NFLX tech
+PLTR tech
 TSLA auto
+RYTM biotech
+GILD biotech
+MRNA biotech
+PFE biotech
+JNJ biotech
+JPM finance
+BAC finance
+GS finance
+COIN crypto
+MSTR crypto
+XOM energy
+CVX energy
+VSME tech
+SPCE tech

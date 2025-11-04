@@ -44,6 +44,139 @@ logger = logging.getLogger(__name__)
 
 
 # ----------------------
+# Cache System for S/R Levels
+# ----------------------
+class LevelsCache:
+    """Cache des niveaux support/résistance pour éviter les recalculs constants"""
+    
+    def __init__(self):
+        self.cache = {}
+        self.cache_duration = timedelta(hours=4)  # Cache 4h par défaut
+        
+    def get_levels(self, symbol: str):
+        """Récupère les niveaux en cache s'ils sont valides"""
+        if symbol not in self.cache:
+            return None
+            
+        cache_entry = self.cache[symbol]
+        now = datetime.now()
+        
+        # Vérifier si le cache n'est pas expiré
+        if now - cache_entry['timestamp'] > self.cache_duration:
+            logger.info(f"🗑️  Cache expiré pour {symbol}")
+            del self.cache[symbol]
+            return None
+            
+        logger.info(f"📦 Cache HIT pour {symbol}")
+        return cache_entry
+        
+    def set_levels(self, symbol: str, support_levels: List[float], resistance_levels: List[float], 
+                   df: pd.DataFrame, last_price: float):
+        """Sauvegarde les niveaux en cache"""
+        self.cache[symbol] = {
+            'timestamp': datetime.now(),
+            'support_levels': support_levels.copy() if isinstance(support_levels, list) else list(support_levels),
+            'resistance_levels': resistance_levels.copy() if isinstance(resistance_levels, list) else list(resistance_levels),
+            'last_price': last_price,
+            'data_length': len(df),
+            'price_range': {
+                'high': float(df['High'].max()),
+                'low': float(df['Low'].min())
+            }
+        }
+        logger.info(f"💾 Cache SAVED pour {symbol} - {len(support_levels)} supports, {len(resistance_levels)} résistances")
+        
+    def should_refresh_levels(self, symbol: str, current_price: float, price_change_threshold: float = 0.05):
+        """Détermine si on doit recalculer les niveaux (prix a beaucoup bougé)"""
+        if symbol not in self.cache:
+            return True
+            
+        cache_entry = self.cache[symbol]
+        last_price = cache_entry['last_price']
+        
+        # Si le prix a bougé de plus de 5%, recalculer
+        price_change = abs(current_price - last_price) / last_price
+        if price_change > price_change_threshold:
+            logger.info(f"📈 Prix {symbol} a bougé de {price_change:.1%}, refresh niveaux")
+            return True
+            
+        return False
+        
+    def clear_cache(self):
+        """Vide tout le cache"""
+        self.cache.clear()
+        logger.info("🗑️  Cache complètement vidé")
+
+# Instance globale du cache
+LEVELS_CACHE = LevelsCache()
+
+# ----------------------
+# API pour Scanner
+# ----------------------
+def get_latest_data_with_cached_levels(symbol: str, data_provider, settings: Dict = None) -> Dict:
+    """
+    API optimisée pour le scanner : récupère la dernière bougie + niveaux S/R en cache
+    
+    Returns:
+        {
+            'symbol': str,
+            'latest_candle': pd.Series,
+            'support_levels': List[float], 
+            'resistance_levels': List[float],
+            'provider_used': str,
+            'cache_hit': bool
+        }
+    """
+    try:
+        # 1. Récupérer seulement la dernière bougie
+        chart_data = ChartData(symbol, data_provider, days=2, period=2)
+        latest_candle = chart_data.fetch_latest_candle()
+        
+        if latest_candle is None:
+            logger.warning(f"Impossible de récupérer la dernière bougie pour {symbol}")
+            return None
+            
+        current_price = float(latest_candle['Close'])
+        
+        # 2. Vérifier le cache des niveaux S/R
+        cache_entry = LEVELS_CACHE.get_levels(symbol)
+        cache_hit = False
+        
+        if cache_entry is None or LEVELS_CACHE.should_refresh_levels(symbol, current_price):
+            # Recalculer les niveaux (besoin de l'historique complet)
+            logger.info(f"🔄 Scanner: Recalcul niveaux S/R pour {symbol}")
+            
+            chart_data_full = ChartData(symbol, data_provider)
+            chart_data_full.fetch_data()
+            df_full = chart_data_full.df
+            
+            sr = SupportResistance()
+            order = settings.get("support_resistance", {}).get("order", 5) if settings else 5
+            support_levels, resistance_levels, _, _ = sr.find_levels(df_full, order)
+            
+            # Sauvegarder en cache
+            LEVELS_CACHE.set_levels(symbol, support_levels, resistance_levels, df_full, current_price)
+        else:
+            # Utiliser les niveaux S/R en cache
+            logger.info(f"📦 Scanner: Cache HIT S/R pour {symbol}")
+            support_levels = cache_entry['support_levels']
+            resistance_levels = cache_entry['resistance_levels']
+            cache_hit = True
+        
+        return {
+            'symbol': symbol,
+            'latest_candle': latest_candle,
+            'support_levels': support_levels,
+            'resistance_levels': resistance_levels,
+            'provider_used': chart_data.used_provider,
+            'cache_hit': cache_hit
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Erreur API scanner pour {symbol}: {e}")
+        return None
+
+# ----------------------
 # Classes & helpers
 # ----------------------
 class ChartData:
@@ -104,6 +237,46 @@ class ChartData:
         self.used_provider = used_provider
         logger.info("✅ [%s] %d bougies récupérées (Provider: %s)", self.symbol, len(df), used_provider)
         return self.df
+    
+    def fetch_latest_candle(self) -> Optional[pd.Series]:
+        """Récupère seulement la dernière bougie (optimisé pour cache)"""
+        try:
+            # Récupérer seulement les 2 dernières bougies
+            df, used_provider = self.data_provider.fetch_data(self.symbol, days=2, period=2)
+            
+            if df is None or df.empty:
+                logger.warning(f"Aucune donnée récente pour {self.symbol}")
+                return None
+                
+            # Normaliser l'index
+            if not isinstance(df.index, pd.DatetimeIndex):
+                if 'Date' in df.columns:
+                    df.index = pd.to_datetime(df['Date'], errors='coerce')
+                    df.drop(columns=['Date'], inplace=True)
+                else:
+                    df.index = pd.to_datetime(df.index, errors='coerce')
+            df = df.sort_index()
+            
+            # Nettoyer les données
+            for col in ('Open', 'High', 'Low', 'Close', 'Volume'):
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
+            
+            df = df.dropna(subset=['Open', 'High', 'Low', 'Close'])
+            
+            if len(df) == 0:
+                return None
+                
+            # Retourner la dernière bougie
+            latest_candle = df.iloc[-1].copy()
+            latest_candle.name = df.index[-1]  # Préserver le timestamp
+            
+            self.used_provider = used_provider
+            return latest_candle
+            
+        except Exception as e:
+            logger.error(f"Erreur récupération dernière bougie {self.symbol}: {e}")
+            return None
 
     def calculate_metrics(self) -> pd.DataFrame:
         """Add/initialize columns used later in the pipeline."""
@@ -403,15 +576,36 @@ def update_display(active_tab: Optional[str], n: int):
         return empty_fig, "Erreur", "Erreur", "Erreur", "-", "Erreur", html.Div("Erreur"), f"Config manquante"
 
     try:
-        # PLUS DE CACHE - RÉCUPÉRATION FRAÎCHE À CHAQUE FOIS
+        # SYSTÈME HYBRIDE : Historique complet + Cache S/R
         chart_data = ChartData(symbol, DATA_PROVIDER)
+        
+        # 1. TOUJOURS charger l'historique complet (pour le graphique)
         chart_data.fetch_data()
         chart_data.calculate_metrics()
         df = chart_data.df
         logger.info(f"📊 {symbol}: {len(df)} bougies récupérées (demandé: {SETTINGS['data']['period_candles']})")
-
+        
+        current_price = float(df['Close'].iloc[-1])
+        
+        # 2. Vérifier le cache des niveaux S/R
+        cache_entry = LEVELS_CACHE.get_levels(symbol)
+        
+        if cache_entry is None or LEVELS_CACHE.should_refresh_levels(symbol, current_price):
+            # Recalculer les niveaux S/R
+            logger.info(f"🔄 Recalcul niveaux S/R pour {symbol}")
+            sr = SupportResistance()
+            support_levels, resistance_levels, _, _ = sr.find_levels(df)
+            
+            # Sauvegarder en cache
+            LEVELS_CACHE.set_levels(symbol, support_levels, resistance_levels, df, current_price)
+        else:
+            # Utiliser les niveaux S/R en cache
+            logger.info(f"📦 Cache HIT S/R pour {symbol}")
+            support_levels = cache_entry['support_levels']
+            resistance_levels = cache_entry['resistance_levels']
+        
+        # 3. Détecter les breakouts avec les niveaux (cache ou recalculés)
         sr = SupportResistance()
-        support_levels, resistance_levels, _, _ = sr.find_levels(df)
         df = sr.detect_breakouts(df, support_levels, resistance_levels)
 
         # ANALYSE CATALYST TEMPS RÉEL
