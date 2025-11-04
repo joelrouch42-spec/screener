@@ -1,0 +1,10 @@
+Commandes pour kill :
+  - kill PID - tue un processus spécifique
+  - pkill -f "nom_script" - tue par nom de script
+  - killall python3 - tue tous les Python
+
+  Pour trouver le PID :
+  - ps aux | grep python
+  - pgrep -f "tabs.py"
+
+  Le dashboard est maintenant arrêté. Tu peux le relancer avec python3 tabs.py config.txt quand tu veux.

@@ -1,0 +1,7 @@
+# Mapping des symboles vers leurs secteurs
+# Format: SYMBOL SECTOR
+# Secteurs supportés: tech, biotech, crypto, energy, finance, retail, auto, real_estate, materials, unknown
+
+NVDA tech
+AAPL tech
+TSLA auto

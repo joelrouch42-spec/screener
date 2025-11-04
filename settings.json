@@ -1,0 +1,65 @@
+{
+  "historique": {
+    "nb_bougies":120,
+    "description": "Nombre de bougies historiques à analyser au démarrage"
+  },
+  "interface": {
+    "refresh_seconds": 60,
+    "chart_height": 900,
+    "description": "Paramètres interface utilisateur"
+  },
+  "catalyst": {
+    "multiplier": 1.5,
+    "min_threshold": 1.0,
+    "news_days": 1,
+    "recent_alerts_days": 7,
+    "catalyst_count_days": 30,
+    "catalyst_log_days": 365,
+    "description": "Paramètres de détection des catalyseurs"
+  },
+  "data": {
+    "days_fetch": 150,
+    "period_candles": 120,
+    "description": "period_candles: Ce qu'il ya dans le graphe"
+  },
+  "analysis": {
+    "avg_candles": 30,
+    "volume_min_candles": 5,
+    "volume_spike_threshold": 1.5,
+    "description": "Paramètres d'analyse technique"
+  },
+  "market": {
+    "open_hour": 9,
+    "open_minute": 30,
+    "close_hour": 16,
+    "close_minute": 0,
+    "description": "Heures d'ouverture marché US (EST)"
+  },
+  "api": {
+    "timeout_seconds": 30,
+    "description": "Paramètres API externes"
+  },
+  "support_resistance": {
+    "order": 5,
+    "cluster_threshold": 0.02,
+    "line_width": 2,
+    "line_opacity": 0.6,
+    "description": "Paramètres support/résistance"
+  },
+  "server": {
+    "port": 8050,
+    "host": "0.0.0.0",
+    "debug": false,
+    "description": "Paramètres serveur web"
+  },
+  "chart": {
+    "margin_top": 50,
+    "margin_bottom": 50,
+    "margin_left": 50,
+    "margin_right": 50,
+    "current_price_line_color": "yellow",
+    "current_price_line_width": 2,
+    "current_price_line_opacity": 0.8,
+    "description": "Paramètres graphiques"
+  }
+}

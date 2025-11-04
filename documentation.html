@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📚 Documentation - Système de Détection de Catalyseurs</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            margin-top: 20px;
+            margin-bottom: 20px;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+        
+        h2 {
+            color: #e74c3c;
+            margin-top: 40px;
+            margin-bottom: 20px;
+            font-size: 1.8em;
+            padding: 10px 0;
+            border-left: 5px solid #e74c3c;
+            padding-left: 15px;
+            background: linear-gradient(90deg, rgba(231,76,60,0.1) 0%, transparent 100%);
+        }
+        
+        h3 {
+            color: #27ae60;
+            margin-top: 25px;
+            margin-bottom: 15px;
+            font-size: 1.4em;
+        }
+        
+        h4 {
+            color: #8e44ad;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            font-size: 1.2em;
+        }
+        
+        .overview {
+            background: linear-gradient(135deg, #74b9ff, #0984e3);
+            color: white;
+            padding: 25px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            text-align: center;
+            font-size: 1.1em;
+        }
+        
+        .file-structure {
+            background: #2d3436;
+            color: #00b894;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            margin: 20px 0;
+            overflow-x: auto;
+        }
+        
+        .code-block {
+            background: #2d3436;
+            color: #ddd;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            margin: 15px 0;
+            overflow-x: auto;
+            border-left: 4px solid #74b9ff;
+        }
+        
+        .code-comment {
+            color: #636e72;
+            font-style: italic;
+        }
+        
+        .highlight {
+            background: #ffeaa7;
+            padding: 3px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        
+        .important {
+            background: linear-gradient(135deg, #fd79a8, #e84393);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border-left: 5px solid #fff;
+        }
+        
+        .info-box {
+            background: linear-gradient(135deg, #74b9ff, #0984e3);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border-left: 5px solid #fff;
+        }
+        
+        .warning {
+            background: linear-gradient(135deg, #fdcb6e, #e17055);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border-left: 5px solid #fff;
+        }
+        
+        .success {
+            background: linear-gradient(135deg, #00b894, #00a085);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border-left: 5px solid #fff;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        th {
+            background: linear-gradient(135deg, #74b9ff, #0984e3);
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-weight: bold;
+        }
+        
+        td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .emoji {
+            font-size: 1.2em;
+        }
+        
+        .toc {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            border: 2px solid #ddd;
+        }
+        
+        .toc ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .toc li {
+            margin: 8px 0;
+            padding: 5px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .toc a {
+            color: #2980b9;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        
+        .toc a:hover {
+            color: #3498db;
+            text-decoration: underline;
+        }
+        
+        .flow-diagram {
+            background: linear-gradient(135deg, #a29bfe, #6c5ce7);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        
+        .interface-mockup {
+            background: #2d3436;
+            color: #00b894;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            margin: 20px 0;
+            border: 2px solid #74b9ff;
+        }
+        
+        .command-box {
+            background: #2d3436;
+            color: #00b894;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            margin: 15px 0;
+            border-left: 4px solid #00b894;
+        }
+        
+        .error-help {
+            background: linear-gradient(135deg, #ff7675, #d63031);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                margin: 10px;
+                padding: 15px;
+            }
+            
+            h1 {
+                font-size: 2em;
+            }
+            
+            h2 {
+                font-size: 1.5em;
+            }
+            
+            .code-block, .file-structure, .command-box {
+                font-size: 0.9em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📚 Documentation du Code - Système de Détection de Catalyseurs</h1>
+        
+        <div class="overview">
+            <h3>🎯 Vue d'ensemble du projet</h3>
+            <p>Votre système surveille automatiquement les actions en bourse et détecte quand il se passe quelque chose d'important (un "catalyseur") - comme des résultats d'entreprise, des annonces FDA, etc.</p>
+        </div>
+
+        <div class="toc">
+            <h3>📋 Table des matières</h3>
+            <ul>
+                <li><a href="#structure">📁 Structure des fichiers</a></li>
+                <li><a href="#tabs">🖥️ tabs.py - Le Dashboard Principal</a></li>
+                <li><a href="#catalyst">🔍 catalyst_analyzer.py - Le Détecteur</a></li>
+                <li><a href="#providers">📊 data_providers.py - Les Sources de Données</a></li>
+                <li><a href="#config">⚙️ Fichiers de Configuration</a></li>
+                <li><a href="#flux">🔄 Flux d'exécution</a></li>
+                <li><a href="#interface">🎛️ Interface Utilisateur</a></li>
+                <li><a href="#catalysts">🚨 Types de Catalyseurs</a></li>
+                <li><a href="#commands">🛠️ Commandes Utiles</a></li>
+                <li><a href="#debug">🐛 Dépannage</a></li>
+                <li><a href="#custom">💡 Personnalisation</a></li>
+            </ul>
+        </div>
+
+        <h2 id="structure">📁 Structure des fichiers</h2>
+        <div class="file-structure">
+/home/joel/screener/
+├── tabs.py                 <span class="code-comment"># 🖥️  Interface web principale (dashboard)</span>
+├── catalyst_analyzer.py    <span class="code-comment"># 🔍 Détecteur de catalyseurs</span>
+├── data_providers.py      <span class="code-comment"># 📊 Récupère les données boursières</span>
+├── config.txt             <span class="code-comment"># ⚙️  Liste des actions à surveiller</span>
+└── sector_mapping.txt     <span class="code-comment"># 🏢 Associe chaque action à son secteur</span>
+        </div>
+
+        <h2 id="tabs">🖥️ tabs.py - Le Dashboard Principal</h2>
+        
+        <div class="info-box">
+            <strong>Qu'est-ce que ça fait ?</strong><br>
+            C'est votre interface web - comme une page internet que vous ouvrez dans votre navigateur pour voir vos actions.
+        </div>
+
+        <h3>Les parties importantes :</h3>
+
+        <h4>🏗️ ChartData (lignes 48-114)</h4>
+        <div class="code-block">
+class ChartData:
+    def fetch_data(self):       <span class="code-comment"># Télécharge les prix des actions</span>
+    def calculate_metrics(self): <span class="code-comment"># Calcule les moyennes, etc.</span>
+        </div>
+        <div class="highlight">En français</div>: Cette classe récupère les données d'une action (prix, volume) depuis internet.
+
+        <h4>📈 SupportResistance (lignes 116-187)</h4>
+        <div class="code-block">
+def find_levels(df):        <span class="code-comment"># Trouve les niveaux importants</span>
+def detect_breakouts(df):   <span class="code-comment"># Détecte les cassures</span>
+        </div>
+        <div class="highlight">En français</div>: Trouve les prix où l'action a tendance à rebondir (support) ou à buter (résistance).
+
+        <h4>🎨 create_chart() (lignes 193-235)</h4>
+        <div class="code-block">
+def create_chart(symbol, df, support_levels, resistance_levels):
+    <span class="code-comment"># Crée le graphique avec les bougies japonaises</span>
+        </div>
+        <div class="highlight">En français</div>: Dessine le graphique que vous voyez avec les barres vertes/rouges.
+
+        <h4>🔄 update_display() (lignes 336-455)</h4>
+        <div class="important">
+            <strong>Le cœur du système !</strong>
+        </div>
+        <div class="code-block">
+@app.callback  <span class="code-comment"># Se déclenche toutes les 60 secondes</span>
+def update_display(active_tab, n):
+    <span class="code-comment"># 1. Regarde quel onglet est actif (VSME, NVDA, etc.)</span>
+    <span class="code-comment"># 2. Vérifie si les données sont récentes (cache de 5 min)</span>
+    <span class="code-comment"># 3. Si trop vieilles → télécharge nouvelles données</span>
+    <span class="code-comment"># 4. Calcule support/résistance</span>
+    <span class="code-comment"># 5. Cherche des catalyseurs</span>
+    <span class="code-comment"># 6. Met à jour l'affichage</span>
+        </div>
+
+        <h4>🚀 main() (lignes 516-575)</h4>
+        <div class="code-block">
+def main():
+    <span class="code-comment"># 1. Lit config.txt → quelles actions surveiller</span>
+    <span class="code-comment"># 2. Lit sector_mapping.txt → secteur de chaque action</span>
+    <span class="code-comment"># 3. Initialise les connexions aux sources de données</span>
+    <span class="code-comment"># 4. Lance l'analyse de toutes les bougies historiques</span>
+    <span class="code-comment"># 5. Démarre le serveur web sur http://127.0.0.1:8050</span>
+        </div>
+
+        <h2 id="catalyst">🔍 catalyst_analyzer.py - Le Détecteur</h2>
+        
+        <div class="info-box">
+            <strong>Qu'est-ce que ça fait ?</strong><br>
+            Surveille les mouvements de prix importants (>5%) et utilise l'IA pour deviner pourquoi ça a bougé.<br>
+            <strong>🆕 NOUVEAU :</strong> Vérifie maintenant si le marché est ouvert avant d'analyser !
+        </div>
+        
+        <div class="success">
+            <strong>🔧 AMÉLIORATIONS RÉCENTES :</strong><br>
+            • Migration vers <code>zoneinfo</code> (plus moderne que pytz)<br>
+            • Analyse conditionnelle : ne surveille que si marché ouvert<br>
+            • Fonction <code>is_market_open()</code> plus flexible<br>
+            • Gestion d'erreurs améliorée
+        </div>
+
+        <h3>Les fonctions clés :</h3>
+
+        <h4>🎯 detect_significant_move() (lignes 28-34)</h4>
+        <div class="code-block">
+def detect_significant_move(self, df, threshold=5.0):
+    current_price = df['Close'].iloc[-1]     <span class="code-comment"># Prix actuel</span>
+    previous_price = df['Close'].iloc[-2]    <span class="code-comment"># Prix d'hier</span>
+    change_pct = ((current_price - previous_price) / previous_price) * 100
+    
+    if abs(change_pct) >= 5.0:  <span class="code-comment"># Si ça bouge de +/- 5%</span>
+        return True, change_pct, "UP" ou "DOWN"
+        </div>
+        <div class="highlight">En français</div>: "Est-ce que l'action a bougé de plus de 5% ?"
+
+        <h4>📰 get_news_context() (lignes 34-56)</h4>
+        <div class="code-block">
+def get_news_context(self, symbol):
+    ticker = yf.Ticker(symbol)  <span class="code-comment"># Utilise Yahoo Finance</span>
+    news = ticker.news          <span class="code-comment"># Récupère les news</span>
+    <span class="code-comment"># Garde seulement les news récentes (1 jour)</span>
+        </div>
+        <div class="highlight">En français</div>: Récupère les actualités récentes sur l'action.
+
+        <h4>🤖 analyze_catalyst_with_ai() (lignes 58-137)</h4>
+        <div class="code-block">
+def analyze_catalyst_with_ai(self, symbol, change_pct, sector, news):
+    <span class="code-comment"># Envoie tout ça à Claude AI :</span>
+    <span class="code-comment"># "Pourquoi NVDA a fait +8.5% dans le secteur tech avec ces news ?"</span>
+    
+    <span class="code-comment"># Claude répond avec du JSON :</span>
+    {
+        "type": "earnings",           <span class="code-comment"># Type de catalyseur</span>
+        "description": "Beat EPS",    <span class="code-comment"># Description courte</span>
+        "reliability": "high",        <span class="code-comment"># Fiabilité</span>
+        "tradeable": true            <span class="code-comment"># Peut-on trader dessus ?</span>
+    }
+        </div>
+        <div class="highlight">En français</div>: Demande à l'IA Claude pourquoi l'action a bougé.
+
+        <h4>⏰ is_market_open() (lignes 19-35) - NOUVEAU !</h4>
+        <div class="code-block">
+def is_market_open(self, dt: Optional[datetime] = None) -> bool:
+    <span class="code-comment"># Peut tester une date spécifique ou maintenant</span>
+    dt = dt or datetime.now(EST)
+    if dt.weekday() > 4:  <span class="code-comment"># Weekend (Lundi=0, Vendredi=4)</span>
+        return False
+    
+    <span class="code-comment"># Marché ouvert 9h30-16h EST</span>
+    market_open = dt.replace(hour=9, minute=30)
+    market_close = dt.replace(hour=16, minute=0)
+    return market_open <= dt <= market_close
+        </div>
+        <div class="highlight">En français</div>: "Le marché américain est-il ouvert maintenant ou à une date donnée ?"
+        
+        <div class="info-box">
+            <strong>🆕 NOUVELLE FONCTIONNALITÉ</strong><br>
+            • Peut tester n'importe quelle date/heure<br>
+            • Plus précis dans la détection des heures d'ouverture<br>
+            • Utilise zoneinfo au lieu de pytz (plus moderne)
+        </div>
+
+        <h2 id="providers">📊 data_providers.py - Les Sources de Données</h2>
+        
+        <div class="info-box">
+            <strong>Qu'est-ce que ça fait ?</strong><br>
+            Récupère les prix des actions depuis plusieurs sources internet (avec système de secours).
+        </div>
+
+        <h3>Le système de fallback :</h3>
+        <div class="code-block">
+class MultiSourceDataProvider:
+    <span class="code-comment"># Essaie dans l'ordre :</span>
+    <span class="code-comment"># 1. Polygon.io (payant, temps réel)</span>
+    <span class="code-comment"># 2. Alpha Vantage (gratuit limité)</span>
+    <span class="code-comment"># 3. Yahoo Finance (gratuit, fiable)</span>
+        </div>
+        <div class="highlight">En français</div>: "Si la source 1 ne marche pas, essaie la source 2, sinon la 3..."
+
+        <h2 id="config">⚙️ Fichiers de Configuration</h2>
+
+        <h3>config.txt</h3>
+        <div class="code-block">
+<span class="code-comment"># Format: SYMBOL PROVIDER</span>
+VSME auto
+NVDA auto  
+AAPL auto
+        </div>
+        <div class="highlight">En français</div>: Liste des actions à surveiller + quelle source utiliser.
+
+        <h3>sector_mapping.txt</h3>
+        <div class="code-block">
+NVDA tech
+RYTM biotech
+COIN crypto
+        </div>
+        <div class="highlight">En français</div>: Dit à quel secteur appartient chaque action (pour l'analyse IA).
+
+        <h2 id="flux">🔄 Flux d'exécution (comment ça marche)</h2>
+
+        <h3>Au démarrage :</h3>
+        <div class="flow-diagram">
+            <div>1. 📖 Lit config.txt → "Je dois surveiller VSME, NVDA..."</div>
+            <div>↓</div>
+            <div>2. 🗺️ Lit sector_mapping.txt → "NVDA = tech, RYTM = biotech..."</div>
+            <div>↓</div>
+            <div>3. 🔌 Se connecte aux sources de données (Polygon, Yahoo...)</div>
+            <div>↓</div>
+            <div>4. 🤖 Initialise le détecteur de catalyseurs</div>
+            <div>↓</div>
+            <div>5. 📊 ANALYSE HISTORIQUE: Pour chaque action, regarde toutes les bougies des 30 derniers jours</div>
+            <div>↓</div>
+            <div>6. 🌐 Démarre le serveur web sur http://127.0.0.1:8050</div>
+        </div>
+
+        <h3>Toutes les 60 secondes :</h3>
+        <div class="flow-diagram">
+            <div>1. 👁️ Regarde quel onglet vous regardez (VSME ? NVDA ?)</div>
+            <div>↓</div>
+            <div>2. ⏰ Vérifie si les données sont fraîches (moins de 5 min)</div>
+            <div>↓</div>
+            <div>3. 📥 Si trop vieilles → télécharge nouvelles données</div>
+            <div>↓</div>
+            <div>4. 📏 Calcule support/résistance</div>
+            <div>↓</div>
+            <div>5. 🕐 <strong>NOUVEAU :</strong> Vérifie si marché US ouvert (9h30-16h EST)</div>
+            <div>↓</div>
+            <div>6. 🔍 DÉTECTION CATALYSEUR: Si marché ouvert ET mouvement >5% → demande à l'IA</div>
+            <div>↓</div>
+            <div>7. 📊 Met à jour le graphique et le journal</div>
+        </div>
+
+        <h2 id="interface">🎛️ Interface Utilisateur</h2>
+
+        <h3>Ce que vous voyez :</h3>
+        <div class="interface-mockup">
+┌─ Onglets: [VSME] [NVDA] [AAPL] ─┐
+├─ Stats: Prix | Précédent | %Δ  ─┤  
+├─ CATALYST LOG              ─┤
+│  📅 01/11: +6.5% earnings       │
+│  📅 28/10: -4.1% technical      │  
+├─ Graphique (bougies)       ─┤
+└─ Dernière MAJ: 10:30:15    ─┘
+        </div>
+
+        <h3>Les couleurs :</h3>
+        <ul>
+            <li>🟢 <strong>Vert</strong> : Prix qui monte</li>
+            <li>🔴 <strong>Rouge</strong> : Prix qui descend</li>
+            <li>🟡 <strong>Jaune</strong> : Lignes de support/résistance</li>
+            <li>🟦 <strong>Bleu</strong> : Interface sombre</li>
+        </ul>
+
+        <h2 id="catalysts">🚨 Types de Catalyseurs Détectés</h2>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Type</th>
+                    <th>Quand ça arrive</th>
+                    <th>Exemple</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>earnings</code></td>
+                    <td>Résultats trimestriels</td>
+                    <td>"NVDA bat les prévisions"</td>
+                </tr>
+                <tr>
+                    <td><code>fda</code></td>
+                    <td>Biotech/pharma</td>
+                    <td>"Médicament approuvé par FDA"</td>
+                </tr>
+                <tr>
+                    <td><code>technical</code></td>
+                    <td>Pas de news claire</td>
+                    <td>"Breakout technique"</td>
+                </tr>
+                <tr>
+                    <td><code>acquisition</code></td>
+                    <td>Rachat d'entreprise</td>
+                    <td>"Microsoft rachète X"</td>
+                </tr>
+                <tr>
+                    <td><code>contract</code></td>
+                    <td>Gros contrat</td>
+                    <td>"Contrat gouvernemental"</td>
+                </tr>
+                <tr>
+                    <td><code>crypto_move</code></td>
+                    <td>Lié aux cryptos</td>
+                    <td>"Bitcoin monte → COIN monte"</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2 id="commands">🛠️ Commandes Utiles</h2>
+
+        <h3>Lancer le système :</h3>
+        <div class="command-box">
+cd /home/joel/screener
+python3 tabs.py config.txt
+        </div>
+
+        <h3>Arrêter le système :</h3>
+        <div class="command-box">
+Ctrl+C
+        </div>
+
+        <h3>Accéder à l'interface :</h3>
+        <div class="success">
+            Ouvrir dans votre navigateur : <strong>http://127.0.0.1:8050</strong>
+        </div>
+
+        <h2 id="debug">🐛 Si ça ne marche pas</h2>
+
+        <h3>Messages d'erreur courants :</h3>
+
+        <div class="error-help">
+            <strong>"No data for VSME"</strong><br>
+            → L'action n'existe pas ou est trop petite
+        </div>
+
+        <div class="error-help">
+            <strong>"Catalyst Analyzer non disponible"</strong><br>
+            → Problème de connexion à l'API Claude
+        </div>
+
+        <div class="error-help">
+            <strong>"Config manquante"</strong><br>
+            → Vérifiez que config.txt existe et contient vos actions
+        </div>
+
+        <div class="error-help">
+            <strong>"⚠️ Marché fermé, analyse de la bougie courante ignorée"</strong><br>
+            → NOUVEAU : Normal ! Le système ne surveille que pendant les heures de marché US (9h30-16h EST)
+        </div>
+
+        <div class="error-help">
+            <strong>Page blanche</strong><br>
+            → Vérifiez l'URL : http://127.0.0.1:8050 (pas https)
+        </div>
+
+        <div class="warning">
+            <strong>Fichiers de debug :</strong><br>
+            • Les logs s'affichent dans le terminal<br>
+            • Aucun fichier n'est sauvegardé (tout en mémoire)
+        </div>
+
+        <h2 id="custom">💡 Personnalisation Simple</h2>
+
+        <h3>Ajouter une action :</h3>
+        <p>Éditez <code>config.txt</code> :</p>
+        <div class="code-block">
+VSME auto
+NVDA auto  
+TSLA auto  <span class="code-comment">← Ajouter cette ligne</span>
+        </div>
+
+        <h3>Changer le seuil de détection :</h3>
+        <p>Dans <code>catalyst_analyzer.py</code>, ligne 562 :</p>
+        <div class="code-block">
+threshold=3.0  <span class="code-comment"># Changez 3.0 vers 5.0 pour être moins sensible</span>
+        </div>
+
+        <h3>Changer l'intervalle de refresh :</h3>
+        <p>Dans <code>tabs.py</code>, ligne 289 :</p>
+        <div class="code-block">
+interval=60 * 1000  <span class="code-comment"># 60 secondes (changez 60 vers 30 pour 30 sec)</span>
+        </div>
+
+        <div class="success">
+            <h3>🚀 Conclusion</h3>
+            <p>Ce système surveille automatiquement vos actions et vous alerte quand quelque chose d'important se passe, en utilisant l'IA pour comprendre pourquoi les prix bougent !</p>
+        </div>
+
+        <div class="success">
+            <h3>🚀 Dernières améliorations (Novembre 2025)</h3>
+            <p><strong>Version 2.0 :</strong></p>
+            <ul style="text-align: left;">
+                <li>✅ Migration vers <code>zoneinfo</code> (Python 3.9+)</li>
+                <li>✅ Surveillance conditionnelle (seulement si marché ouvert)</li>
+                <li>✅ Fonction <code>is_market_open()</code> flexible</li>
+                <li>✅ Gestion timezone EST plus robuste</li>
+                <li>✅ Code simplifié et optimisé</li>
+            </ul>
+        </div>
+
+        <footer style="text-align: center; margin-top: 40px; padding: 20px; border-top: 2px solid #ddd; color: #666;">
+            <p>📚 Documentation mise à jour le 03/11/2025</p>
+            <p>🤖 Système de Détection de Catalyseurs - Version 2.0 (zoneinfo)</p>
+        </footer>
+    </div>
+</body>
+</html>
