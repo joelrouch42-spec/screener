@@ -4,4 +4,20 @@
 # Lignes commençant par # sont ignorées
 
 VSME auto
+NVDA auto
+AAPL auto
+TSLA auto
+AMD auto
+INTC auto
+PLTR auto
 
+# BIO
+RYTM auto
+VRTX auto
+
+#
+COIN auto
+MSTR auto
+RIOT auto
+CLSK auto
+BTDR auto
