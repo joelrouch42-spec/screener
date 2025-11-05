@@ -9,10 +9,10 @@ from datetime import datetime, timedelta
 import logging
 
 # Import du scanner et ses dépendances
-from scanner import StockScanner
+from scanner import StockScanner, detect_scanner_breakouts
 from data_providers import MultiSourceDataProvider
 from catalyst_analyzer import CatalystAnalyzer, load_settings
-from tabs import detect_scanner_breakouts, calculate_support_resistance
+from tabs import SupportResistance
 
 # Setup logging
 logging.basicConfig(
@@ -69,10 +69,9 @@ def backtest_symbol(symbol, sector, data_provider, catalyst_analyzer, settings, 
 
         try:
             # A. Calculer Support/Resistance (comme dans le scanner)
-            support_levels, resistance_levels = calculate_support_resistance(
-                df_until_today,
-                order=settings["support_resistance"]["order"]
-            )
+            sr = SupportResistance()
+            order = settings["support_resistance"]["order"]
+            support_levels, resistance_levels, _, _ = sr.find_levels(df_until_today, order)
 
             # B. Détecter breakout technique (comme scan_symbol)
             breakout_info = None
