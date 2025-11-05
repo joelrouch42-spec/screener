@@ -206,13 +206,13 @@ def detect_scanner_breakouts(
         volume_ratio = current_vol / avg_vol if avg_vol > 0 else 0.0
         volume_spike = volume_ratio >= vol_threshold
 
-    # Debug log
-    logger.info(f"Breakout check: change={change_pct:.2f}%, vol_ratio={volume_ratio:.2f}x, spike={volume_spike}, S={len(support_levels)}, R={len(resistance_levels)}")
-    logger.info(f"  Prices: prev_close=${prev_close:.2f}, current: L=${current_low:.2f} H=${current_high:.2f} C=${current_close:.2f}")
-    if len(resistance_levels) > 0:
-        logger.info(f"  Resistances: {[f'${r:.2f}' for r in resistance_levels[:3]]}")
-    if len(support_levels) > 0:
-        logger.info(f"  Supports: {[f'${s:.2f}' for s in support_levels[:3]]}")
+    # Debug logs (commented out for production)
+    # logger.info(f"Breakout check: change={change_pct:.2f}%, vol_ratio={volume_ratio:.2f}x, spike={volume_spike}, S={len(support_levels)}, R={len(resistance_levels)}")
+    # logger.info(f"  Prices: prev_close=${prev_close:.2f}, current: L=${current_low:.2f} H=${current_high:.2f} C=${current_close:.2f}")
+    # if len(resistance_levels) > 0:
+    #     logger.info(f"  Resistances: {[f'${r:.2f}' for r in resistance_levels[:3]]}")
+    # if len(support_levels) > 0:
+    #     logger.info(f"  Supports: {[f'${s:.2f}' for s in support_levels[:3]]}")
 
     # Check resistance breakouts
     for resistance in resistance_levels:
@@ -632,7 +632,7 @@ class StockScanner:
                 try:
                     # Use last 6 candles (need 5 for volume average + current)
                     df_mini = df_full.tail(6)
-                    logger.info(f"[{symbol}] df_full={len(df_full)} rows, df_mini={len(df_mini)} rows, S={len(support_levels)}, R={len(resistance_levels)}")
+                    # logger.info(f"[{symbol}] df_full={len(df_full)} rows, df_mini={len(df_mini)} rows, S={len(support_levels)}, R={len(resistance_levels)}")
                     # In backtest mode, don't require volume spike
                     breakout_info = detect_scanner_breakouts(
                         df_mini,
