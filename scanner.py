@@ -645,7 +645,14 @@ class StockScanner:
 
                 # Avoid duplicate alerts (thread-safe)
                 alert_key = f"{symbol}_{alert_type}"
-                now = datetime.now()
+
+                # In backtest mode, use the date of the last candle
+                if self.settings.get("backtest", {}).get("enabled", False):
+                    now = df_full.index[-1].to_pydatetime()
+                    if now.tzinfo is None:
+                        now = EST.localize(now)
+                else:
+                    now = datetime.now(EST)
 
                 # Check if recent alert (last 30min for technical, 2h for catalyst)
                 cooldown = TECHNICAL_ALERT_COOLDOWN if is_technical else CATALYST_ALERT_COOLDOWN
@@ -711,8 +718,11 @@ class StockScanner:
         alert_icon = "🔧" if is_technical else "🚨"
         alert_title = "BREAKOUT TECHNIQUE" if is_technical else "CATALYST DÉTECTÉ"
 
+        # Use alert timestamp (important for backtest)
+        alert_timestamp = datetime.fromisoformat(alert['timestamp'])
+
         print("\n" + "="*80)
-        print(f"{alert_icon} {alert_title} - {datetime.now().strftime('%H:%M:%S')}")
+        print(f"{alert_icon} {alert_title} - {alert_timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
         print("="*80)
         print(f"📊 Symbole: {symbol} ({alert['sector'].upper()})")
         print(f"💰 Prix: ${current_price:.2f} ({change_direction} {change_pct:+.2f}%)")
