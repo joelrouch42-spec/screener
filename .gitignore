@@ -1,9 +1,11 @@
 .project
 __pycache__/
+scanner.log
+scanner.pid
 *.pyc
 *.pyo
 *.pyd
 scanner.log
 scanner.pid
 venv/
-
+temp/
