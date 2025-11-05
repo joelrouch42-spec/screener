@@ -217,13 +217,17 @@ class YahooFinanceProvider(DataProvider):
             period: Number of candles to return
             end_date: Optional end date (for backtest), defaults to now()
         """
-        if end_date is None:
-            end_date = datetime.now(EST)
-        start_date = end_date - timedelta(days=days)
-
-        # yfinance end parameter is exclusive, so add 1 day to include end_date
         ticker = yf.Ticker(symbol)
-        hist = ticker.history(start=start_date, end=end_date + timedelta(days=1), interval="1d")
+
+        if end_date is None:
+            # Normal mode: use original working code
+            end = datetime.now()
+            start = end - timedelta(days=days)
+            hist = ticker.history(start=start, end=end, interval="1d")
+        else:
+            # Backtest mode: use provided end_date (yfinance end is exclusive, add 1 day)
+            start = end_date - timedelta(days=days)
+            hist = ticker.history(start=start, end=end_date + timedelta(days=1), interval="1d")
 
         if hist.empty:
             raise ValueError(f"Yahoo Finance: No data for {symbol}")
