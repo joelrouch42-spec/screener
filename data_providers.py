@@ -209,25 +209,19 @@ class YahooFinanceProvider(DataProvider):
         return True
     
     def fetch_data(self, symbol, days=80, period=60, end_date=None):
-        """Fetch historical data from Yahoo Finance
-
-        Args:
-            symbol: Stock symbol
-            days: Number of days to fetch
-            period: Number of candles to return
-            end_date: Optional end date (for backtest), defaults to now()
-        """
-        ticker = yf.Ticker(symbol)
-
-        if end_date is None:
-            # Normal mode: use original working code
-            end = datetime.now()
-            start = end - timedelta(days=days)
-            hist = ticker.history(start=start, end=end, interval="1d")
-        else:
+        """Fetch historical data from Yahoo Finance"""
+        if end_date is not None:
             # Backtest mode: use provided end_date (yfinance end is exclusive, add 1 day)
-            start = end_date - timedelta(days=days)
-            hist = ticker.history(start=start, end=end_date + timedelta(days=1), interval="1d")
+            start_date = end_date - timedelta(days=days)
+            ticker = yf.Ticker(symbol)
+            hist = ticker.history(start=start_date, end=end_date + timedelta(days=1), interval="1d")
+        else:
+            # Normal mode: EXACT original code
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=days)
+
+            ticker = yf.Ticker(symbol)
+            hist = ticker.history(start=start_date, end=end_date, interval="1d")
 
         if hist.empty:
             raise ValueError(f"Yahoo Finance: No data for {symbol}")
