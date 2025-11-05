@@ -619,10 +619,10 @@ class StockScanner:
 
             # 1. Analyze technical breakouts with cached levels
             breakout_info = None
-            if (len(support_levels) > 0 or len(resistance_levels) > 0) and len(df_full) >= 2:
+            if (len(support_levels) > 0 or len(resistance_levels) > 0) and len(df_full) >= 6:
                 try:
-                    # Use last 2 candles from full dataframe
-                    df_mini = df_full.tail(2)
+                    # Use last 6 candles (need 5 for volume average + current)
+                    df_mini = df_full.tail(6)
                     breakout_info = detect_scanner_breakouts(
                         df_mini,
                         support_levels,
