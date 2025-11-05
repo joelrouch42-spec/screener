@@ -197,9 +197,10 @@ def detect_scanner_breakouts(
     # Volume spike check (if available)
     volume_spike = False
     volume_ratio = 0.0
-    if 'Volume' in df.columns and len(df) >= 5:
+    if 'Volume' in df.columns and len(df) >= 6:
         current_vol = current['Volume']
-        avg_vol = df['Volume'].iloc[-5:].mean()
+        # Average of 5 candles BEFORE current (exclude current)
+        avg_vol = df['Volume'].iloc[-6:-1].mean()
         volume_ratio = current_vol / avg_vol if avg_vol > 0 else 0.0
         volume_spike = volume_ratio >= vol_threshold
 
