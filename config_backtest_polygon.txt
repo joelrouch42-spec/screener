@@ -1,0 +1,6 @@
+# Configuration pour backtest avec Polygon
+# Format: SYMBOL MIN_RVOL MIN_BETA MIN_RVOL_CHANGE PROVIDER
+
+AAPL 1.5 0.8 0.3 polygon
+NVDA 1.5 0.8 0.3 polygon
+TSLA 1.5 0.8 0.3 polygon
