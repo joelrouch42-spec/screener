@@ -8,8 +8,12 @@ import requests
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 import yfinance as yf
 from abc import ABC, abstractmethod
+
+# Timezone
+EST = ZoneInfo("America/New_York")
 
 # Import IBKR provider
 try:
@@ -61,7 +65,7 @@ class PolygonProvider(DataProvider):
     def fetch_data(self, symbol, days=80, period=60, end_date=None):
         """Fetch historical daily data from Polygon"""
         if end_date is None:
-            end_date = datetime.now()
+            end_date = datetime.now(EST)
         start_date = end_date - timedelta(days=days)
         
         url = f"{self.base_url}/v2/aggs/ticker/{symbol}/range/1/day/{start_date.strftime('%Y-%m-%d')}/{end_date.strftime('%Y-%m-%d')}"
@@ -195,8 +199,8 @@ class YahooFinanceProvider(DataProvider):
         ticker = yf.Ticker(symbol)
 
         if end_date is None:
-            # Normal mode: EXACT original code
-            end_date = datetime.now()
+            # Normal mode: EST timezone
+            end_date = datetime.now(EST)
             start_date = end_date - timedelta(days=days)
             hist = ticker.history(start=start_date, end=end_date, interval="1d")
         else:
