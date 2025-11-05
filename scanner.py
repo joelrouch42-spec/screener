@@ -152,7 +152,8 @@ def detect_scanner_breakouts(
     df: pd.DataFrame,
     support_levels: List[float],
     resistance_levels: List[float],
-    settings: Dict = None
+    settings: Dict = None,
+    check_volume_spike: bool = True
 ) -> Optional[Dict]:
     """
     Detect support/resistance breakouts on latest candle - VERSION SCANNER
@@ -162,6 +163,7 @@ def detect_scanner_breakouts(
         support_levels: List of support price levels
         resistance_levels: List of resistance price levels
         settings: Optional settings dict with breakout configuration
+        check_volume_spike: If False, ignore volume spike requirement (for backtest)
 
     Returns:
         Dict with breakout info if detected, None otherwise
@@ -213,7 +215,7 @@ def detect_scanner_breakouts(
             current_high > resistance and
             current_close > resistance and  # Close above as well
             change_pct >= min_move and  # Configurable threshold
-            volume_spike):  # High volume
+            (not check_volume_spike or volume_spike)):  # Volume check (optional in backtest)
             return {
                 'type': 'resistance_breakout',
                 'level': float(resistance),
@@ -227,7 +229,7 @@ def detect_scanner_breakouts(
             current_low < support and
             current_close < support and  # Close below as well
             change_pct <= -min_move and  # Configurable threshold
-            volume_spike):  # High volume
+            (not check_volume_spike or volume_spike)):  # Volume check (optional in backtest)
             return {
                 'type': 'support_breakdown',
                 'level': float(support),
@@ -620,16 +622,19 @@ class StockScanner:
 
             # 1. Analyze technical breakouts with cached levels
             breakout_info = None
+            backtest_mode = self.settings.get("backtest", {}).get("enabled", False)
             if (len(support_levels) > 0 or len(resistance_levels) > 0) and len(df_full) >= 6:
                 try:
                     # Use last 6 candles (need 5 for volume average + current)
                     df_mini = df_full.tail(6)
                     logger.info(f"[{symbol}] df_full={len(df_full)} rows, df_mini={len(df_mini)} rows, S={len(support_levels)}, R={len(resistance_levels)}")
+                    # In backtest mode, don't require volume spike
                     breakout_info = detect_scanner_breakouts(
                         df_mini,
                         support_levels,
                         resistance_levels,
-                        self.settings
+                        self.settings,
+                        check_volume_spike=not backtest_mode
                     )
                 except Exception as e:
                     logger.error(f"Error detecting breakout for {symbol}: {e}", exc_info=True)
