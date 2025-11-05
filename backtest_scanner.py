@@ -156,6 +156,10 @@ def main():
     settings = load_settings('settings.json')
     catalyst_analyzer = CatalystAnalyzer(settings=settings)
 
+    # IMPORTANT: Bypasser la vérification du marché pour le backtest
+    catalyst_analyzer.is_market_open = lambda dt=None: True
+    print("⚠️  Mode BACKTEST: Vérification marché désactivée")
+
     # 3. Backtest chaque symbole
     all_alerts = []
 
