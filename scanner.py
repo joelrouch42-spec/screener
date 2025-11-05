@@ -654,20 +654,28 @@ class StockScanner:
                     logger.error(f"Error analyzing catalyst for {symbol}: {e}", exc_info=True)
                     self.metrics.record_error()
 
-            # Apply alert mode filter
+            # Apply alert mode filter and collect all alerts
             alert_mode = self.settings.get("alerts", {}).get("mode", "all")
+            alerts_to_process = []
 
             if alert_mode == "technical_only":
                 # Only technical breakouts
-                alert_info = breakout_info
+                if breakout_info:
+                    alerts_to_process.append(breakout_info)
             elif alert_mode == "catalyst_only":
                 # Only catalysts
-                alert_info = catalyst_info
+                if catalyst_info:
+                    alerts_to_process.append(catalyst_info)
             else:
-                # Default: Priority Catalyst (AI) > Technical breakout
-                alert_info = catalyst_info or breakout_info
+                # "all" mode: show both if both exist
+                if breakout_info:
+                    alerts_to_process.append(breakout_info)
+                if catalyst_info:
+                    alerts_to_process.append(catalyst_info)
 
-            if alert_info:
+            # Process all detected alerts
+            created_alerts = []
+            for alert_info in alerts_to_process:
                 # Determine alert type
                 alert_type = alert_info.get('type', 'unknown')
                 is_technical = alert_type in ['resistance_breakout', 'support_breakdown']
@@ -691,7 +699,7 @@ class StockScanner:
                         time_diff = now - self.recent_alerts[alert_key]
                         if time_diff < cooldown:
                             logger.debug(f"Skipping duplicate alert for {alert_key}")
-                            return None  # Too recent
+                            continue  # Skip this alert, process next one
 
                     # Record this alert
                     self.recent_alerts[alert_key] = now
@@ -714,7 +722,10 @@ class StockScanner:
                 # Record metrics
                 self.metrics.record_alert(is_technical)
 
-                return alert
+                created_alerts.append(alert)
+
+            # Return all created alerts (list, may be empty)
+            return created_alerts if created_alerts else None
 
         except Exception as e:
             logger.error(f'❌ Error scanning {symbol}: {e}', exc_info=True)
@@ -824,11 +835,13 @@ class StockScanner:
                 symbol = future_to_symbol[future]
 
                 try:
-                    alert = future.result()
+                    alerts = future.result()
 
-                    if alert:
-                        self.display_alert(alert)
-                        alerts_found += 1
+                    if alerts:
+                        # alerts is a list (can contain 1 or 2 alerts)
+                        for alert in alerts:
+                            self.display_alert(alert)
+                            alerts_found += 1
 
                 except Exception as e:
                     logger.error(f"❌ Error processing {symbol}: {e}", exc_info=True)
