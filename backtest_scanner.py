@@ -121,10 +121,19 @@ def backtest_symbol(symbol, sector, data_provider, catalyst_analyzer, settings, 
 
                 alerts_found.append(alert)
 
-                # Afficher immédiatement
-                emoji = "⚡" if is_technical else "🔥"
-                type_label = alert_type.replace('_', ' ').upper()
-                print(f"{emoji} {current_date.strftime('%Y-%m-%d')} (J-{days_ago:2d}): {type_label:25s} | ${current_price:7.2f} ({change_pct:+5.1f}%)")
+                # Afficher immédiatement (format comme scanner)
+                if is_technical:
+                    # Breakout technique
+                    level = alert_info.get('level', 0)
+                    direction = alert_info.get('direction', '?')
+                    print(f"⚡ {current_date.strftime('%Y-%m-%d')} (J-{days_ago:2d}): {type_label:25s} | ${current_price:7.2f} ({change_pct:+5.1f}%) | Niveau: ${level:.2f} {direction}")
+                else:
+                    # Catalyseur
+                    catalyst_type = alert_info.get('type', 'unknown')
+                    reliability = alert_info.get('reliability', '?')
+                    tradeable = alert_info.get('tradeable', False)
+                    tradeable_txt = "✅" if tradeable else "❌"
+                    print(f"🔥 {current_date.strftime('%Y-%m-%d')} (J-{days_ago:2d}): CATALYST {catalyst_type.upper():15s} | ${current_price:7.2f} ({change_pct:+5.1f}%) | Fiabilité: {reliability.upper()} {tradeable_txt}")
 
         except Exception as e:
             logger.debug(f"Error on {current_date}: {e}")
