@@ -573,11 +573,10 @@ class StockScanner:
             else:
                 logger.debug(f"🔄 {symbol}: Recalculating S/R")
 
-            current_price = float(latest_candle['Close'])
-
             # OPTIMIZATION: Fetch full data ONCE and reuse
             df_full = None
             previous_price = None
+            current_price = None
 
             try:
                 # Backtest mode: calculate end_date based on iteration
@@ -595,6 +594,9 @@ class StockScanner:
                 self.metrics.record_api_call()
 
                 if df_full is not None and len(df_full) >= 2:
+                    # In backtest mode, use prices from historical data
+                    # In normal mode, also use df_full for consistency
+                    current_price = float(df_full['Close'].iloc[-1])
                     previous_price = float(df_full['Close'].iloc[-2])
                 else:
                     logger.warning(f"Insufficient data for {symbol}")
@@ -605,9 +607,9 @@ class StockScanner:
                 self.metrics.record_error()
                 return None
 
-            # Validate previous_price
-            if previous_price is None or previous_price <= 0:
-                logger.warning(f"Invalid previous price for {symbol}: {previous_price}")
+            # Validate prices
+            if current_price is None or current_price <= 0 or previous_price is None or previous_price <= 0:
+                logger.warning(f"Invalid prices for {symbol}: current={current_price}, previous={previous_price}")
                 return None
 
             # 1. Analyze technical breakouts with cached levels
