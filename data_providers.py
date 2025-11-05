@@ -221,8 +221,9 @@ class YahooFinanceProvider(DataProvider):
             end_date = datetime.now(EST)
         start_date = end_date - timedelta(days=days)
 
+        # yfinance end parameter is exclusive, so add 1 day to include end_date
         ticker = yf.Ticker(symbol)
-        hist = ticker.history(start=start_date, end=end_date, interval="1d")
+        hist = ticker.history(start=start_date, end=end_date + timedelta(days=1), interval="1d")
 
         if hist.empty:
             raise ValueError(f"Yahoo Finance: No data for {symbol}")
