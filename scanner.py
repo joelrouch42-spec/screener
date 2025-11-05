@@ -584,7 +584,7 @@ class StockScanner:
                 end_date = None
                 if self.settings.get("backtest", {}).get("enabled", False):
                     iteration = self.settings.get("backtest", {}).get("iteration", 0)
-                    end_date = datetime.now() - timedelta(days=10 + iteration)
+                    end_date = datetime.now(EST) - timedelta(days=10 + iteration)
 
                 df_full, _ = self.data_provider.fetch_data(
                     symbol,
