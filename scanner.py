@@ -624,6 +624,7 @@ class StockScanner:
                 try:
                     # Use last 6 candles (need 5 for volume average + current)
                     df_mini = df_full.tail(6)
+                    logger.debug(f"[{symbol}] df_full={len(df_full)} rows, df_mini={len(df_mini)} rows, S={len(support_levels)}, R={len(resistance_levels)}")
                     breakout_info = detect_scanner_breakouts(
                         df_mini,
                         support_levels,
