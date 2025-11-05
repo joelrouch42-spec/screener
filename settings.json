@@ -62,6 +62,66 @@
     "alerts_only": true,
     "description": "Contrôle des printouts - alerts_only=true pour voir que les alertes et erreurs"
   },
+  "debug": {
+    "candle_offset": 10,
+    "replay_mode": true,
+    "description": "candle_offset: 0=dernière bougie, 1=avant-dernière, 2=il y a 2 bougies, etc. replay_mode active le mode debug"
+  },
+  "signal_filters": {
+    "active_profile": "no_filters",
+    "profiles": {
+      "no_filters": {
+        "enabled": false,
+        "description": "AUCUN FILTRE - toutes les alertes passent"
+      },
+      "breakouts_only": {
+        "enabled": true,
+        "allowed_breakout_types": ["resistance_breakout", "support_breakdown"],
+        "allowed_catalyst_types": [],
+        "blocked_catalyst_types": ["unknown", "technical", "earnings", "contract"],
+        "min_change_percent": 1.0,
+        "require_volume_spike": true,
+        "description": "Que les breakouts techniques avec volume"
+      },
+      "high_confidence": {
+        "enabled": true,
+        "allowed_catalyst_types": ["earnings", "fda", "acquisition"],
+        "blocked_catalyst_types": ["unknown", "technical", "macro"],
+        "min_reliability": "high",
+        "min_change_percent": 2.5,
+        "require_volume_spike": true,
+        "description": "Signaux très fiables uniquement"
+      },
+      "balanced": {
+        "enabled": true,
+        "allowed_breakout_types": ["resistance_breakout", "support_breakdown"],
+        "allowed_catalyst_types": ["earnings", "contract", "fda", "acquisition"],
+        "blocked_catalyst_types": ["unknown", "technical"],
+        "min_reliability": "medium", 
+        "min_change_percent": 1.5,
+        "require_volume_spike": true,
+        "allowed_sectors": ["tech", "biotech", "finance", "crypto"],
+        "description": "Équilibre qualité/quantité - config recommandée"
+      },
+      "tech_focus": {
+        "enabled": true,
+        "allowed_sectors": ["tech"],
+        "min_change_percent": 2.0,
+        "require_volume_spike": true,
+        "description": "Tech stocks uniquement avec mouvements >2%"
+      },
+      "earnings_season": {
+        "enabled": true,
+        "allowed_catalyst_types": ["earnings"],
+        "blocked_catalyst_types": ["unknown", "technical"],
+        "min_reliability": "medium",
+        "min_change_percent": 3.0,
+        "description": "Spécial earnings season - gros mouvements uniquement"
+      }
+    },
+    "// COMMENT": "Changer 'active_profile' pour switcher entre configs",
+    "// PROFILES": "no_filters, breakouts_only, high_confidence, balanced, tech_focus, earnings_season"
+  },
   "chart": {
     "margin_top": 50,
     "margin_bottom": 50,

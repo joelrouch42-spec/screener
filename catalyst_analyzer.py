@@ -271,7 +271,7 @@ Retourne un JSON avec cette structure exacte:
         )
         if not exists:
             self.current_catalysts.append(result)
-            print(f"✅ [{symbol}] Catalyseur détecté: {catalyst_analysis['type']} ({catalyst_analysis['reliability']})")
+            # Supprimé - alerte finale affichée par scanner
         return result
 
     def analyze_all_candles(self, symbol, df, sector) -> None:

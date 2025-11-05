@@ -1,0 +1,226 @@
+{
+  "signal_types": {
+    "technical_breakouts": {
+      "resistance_breakout": {
+        "description": "Prix casse une résistance avec volume",
+        "conditions": [
+          "prev_close < resistance",
+          "current_high > resistance", 
+          "current_close > resistance",
+          "change_pct >= min_move_percent (default: 1.0%)",
+          "volume_spike >= volume_spike_threshold (default: 1.5x)"
+        ],
+        "direction": "UP",
+        "reliability": "medium",
+        "tradeable": true,
+        "example": "AAPL casse $150 avec +2.1% et volume 2x"
+      },
+      "support_breakdown": {
+        "description": "Prix casse un support avec volume",
+        "conditions": [
+          "prev_close > support",
+          "current_low < support",
+          "current_close < support", 
+          "change_pct <= -min_move_percent (default: -1.0%)",
+          "volume_spike >= volume_spike_threshold (default: 1.5x)"
+        ],
+        "direction": "DOWN", 
+        "reliability": "medium",
+        "tradeable": true,
+        "example": "MSFT casse $515 avec -2.3% et volume 1.8x"
+      }
+    },
+    "catalyst_movements": {
+      "earnings": {
+        "description": "Mouvement lié aux résultats financiers",
+        "conditions": [
+          "abs(change_pct) >= dynamic_threshold",
+          "news récentes contenant 'earnings/résultats'",
+          "volume_spike optionnel"
+        ],
+        "direction": "UP/DOWN",
+        "reliability": "high",
+        "tradeable": true,
+        "example": "NVDA +8.5% après résultats Q3"
+      },
+      "technical": {
+        "description": "Mouvement technique sans catalyseur identifié",
+        "conditions": [
+          "abs(change_pct) >= dynamic_threshold",
+          "aucune news significative",
+          "fallback analysis"
+        ],
+        "direction": "UP/DOWN", 
+        "reliability": "low",
+        "tradeable": false,
+        "example": "PLTR -6.34% sans news particulière"
+      },
+      "contract": {
+        "description": "Annonce de contrat ou partenariat",
+        "conditions": [
+          "abs(change_pct) >= dynamic_threshold",
+          "news mentionnant 'contract/deal/partnership'",
+          "IA analysis"
+        ],
+        "direction": "UP",
+        "reliability": "medium",
+        "tradeable": true,
+        "example": "PLTR +12% contrat gouvernemental"
+      },
+      "macro": {
+        "description": "Mouvement lié aux conditions macro-économiques",
+        "conditions": [
+          "abs(change_pct) >= dynamic_threshold", 
+          "corrélation secteur/marché",
+          "IA analysis"
+        ],
+        "direction": "UP/DOWN",
+        "reliability": "medium",
+        "tradeable": false,
+        "example": "Tech -3% après Powell speech"
+      },
+      "fda": {
+        "description": "Approbation/rejet FDA (biotech)",
+        "conditions": [
+          "abs(change_pct) >= dynamic_threshold",
+          "secteur = biotech", 
+          "news FDA/approval",
+          "IA analysis"
+        ],
+        "direction": "UP/DOWN",
+        "reliability": "high",
+        "tradeable": true,
+        "example": "RYTM +45% approbation FDA"
+      },
+      "acquisition": {
+        "description": "Rumeur ou annonce d'acquisition",
+        "conditions": [
+          "abs(change_pct) >= dynamic_threshold",
+          "news 'acquisition/merger/buyout'",
+          "IA analysis"
+        ],
+        "direction": "UP",
+        "reliability": "high", 
+        "tradeable": true,
+        "example": "XYZ +25% rumeur rachat"
+      },
+      "crypto_move": {
+        "description": "Mouvement lié aux cryptomonnaies",
+        "conditions": [
+          "abs(change_pct) >= dynamic_threshold",
+          "symboles crypto-related (COIN, MSTR, etc.)",
+          "corrélation BTC/ETH"
+        ],
+        "direction": "UP/DOWN",
+        "reliability": "medium",
+        "tradeable": true,
+        "example": "COIN +8% avec Bitcoin +5%"
+      },
+      "sector_rotation": {
+        "description": "Rotation sectorielle",
+        "conditions": [
+          "mouvement corrélé dans le secteur",
+          "performance relative vs marché",
+          "IA analysis"
+        ],
+        "direction": "UP/DOWN",
+        "reliability": "low",
+        "tradeable": false,
+        "example": "Energy +3% rotation défensive"
+      },
+      "short_squeeze": {
+        "description": "Squeeze des positions courtes",
+        "conditions": [
+          "mouvement violent UP",
+          "volume extrême",
+          "contexte high short interest",
+          "IA analysis"
+        ],
+        "direction": "UP",
+        "reliability": "medium",
+        "tradeable": false,
+        "example": "GME +40% short squeeze"
+      },
+      "unknown": {
+        "description": "Mouvement significatif sans cause identifiée",
+        "conditions": [
+          "abs(change_pct) >= dynamic_threshold",
+          "IA ne trouve pas de cause claire",
+          "fallback analysis"
+        ],
+        "direction": "UP/DOWN",
+        "reliability": "low", 
+        "tradeable": false,
+        "example": "ABC +4.2% cause inconnue"
+      }
+    }
+  },
+  "dynamic_thresholds": {
+    "description": "Seuils adaptatifs par symbole",
+    "calculation": "avg_move_30_candles * multiplier (default: 1.5)",
+    "min_threshold": "1.0% minimum pour éviter micro-mouvements",
+    "examples": {
+      "AAPL": "Volatilité ~0.9% → seuil 1.35%",
+      "TSLA": "Volatilité ~2.7% → seuil 4.0%", 
+      "NVDA": "Volatilité ~1.7% → seuil 2.55%"
+    }
+  },
+  "filtering_options": {
+    "by_signal_type": [
+      "resistance_breakout",
+      "support_breakdown", 
+      "earnings",
+      "technical",
+      "contract",
+      "macro",
+      "fda",
+      "acquisition", 
+      "crypto_move",
+      "sector_rotation",
+      "short_squeeze",
+      "unknown"
+    ],
+    "by_reliability": ["high", "medium", "low"],
+    "by_direction": ["UP", "DOWN"],
+    "by_tradeable": [true, false],
+    "by_sector": ["tech", "biotech", "finance", "energy", "crypto", "auto"],
+    "by_volume_spike": [true, false],
+    "by_percentage": {
+      "min_change": "Mouvement minimum en %",
+      "max_change": "Mouvement maximum en %"
+    }
+  },
+  "testing_suggestions": {
+    "high_confidence": [
+      "resistance_breakout + volume_spike + earnings",
+      "support_breakdown + volume_spike + contract", 
+      "fda + biotech + volume_spike"
+    ],
+    "medium_confidence": [
+      "resistance_breakout + technical",
+      "crypto_move + volume_spike",
+      "acquisition + rumor"
+    ],
+    "low_confidence": [
+      "technical + unknown + no_volume",
+      "sector_rotation + macro",
+      "short_squeeze + speculation"
+    ]
+  },
+  "configuration": {
+    "location": "settings.json",
+    "key_parameters": {
+      "catalyst.multiplier": "Multiplicateur pour seuil dynamique",
+      "catalyst.min_threshold": "Seuil minimum en %", 
+      "breakout.min_move_percent": "Mouvement minimum pour breakouts",
+      "breakout.volume_spike_threshold": "Volume requis vs moyenne",
+      "analysis.volume_spike_threshold": "Volume spike général"
+    }
+  },
+  "metadata": {
+    "created": "2025-11-04",
+    "version": "1.0",
+    "last_update": "scanner optimization with caching",
+    "total_signal_types": 11
+  }
+}

@@ -73,10 +73,17 @@ def detect_scanner_breakouts(df: pd.DataFrame, support_levels: List[float], resi
     
     # Check resistance breakouts
     for resistance in resistance_levels:
-        if (prev_close < resistance and current_high > resistance and 
-            current_close > resistance and  # Close au-dessus aussi
-            change_pct >= min_move and  # Seuil configurable
-            volume_spike):  # Volume élevé
+        # DEBUG: Vérifier chaque condition
+        cond1 = prev_close < resistance
+        cond2 = current_high > resistance  
+        cond3 = current_close > resistance
+        cond4 = change_pct >= min_move
+        cond5 = volume_spike
+        
+        if settings and settings.get("logging", {}).get("debug", False):
+            print(f"[DEBUG] {df.index[-1].strftime('%H:%M')} Resistance ${resistance:.2f}: prev<res={cond1}, high>res={cond2}, close>res={cond3}, %>={min_move}={cond4}, vol={cond5}")
+        
+        if (cond1 and cond2 and cond3 and cond4 and cond5):
             return {
                 'type': 'resistance_breakout',
                 'level': float(resistance),
@@ -136,6 +143,17 @@ class StockScanner:
         # Contrôle des printouts
         self.alerts_only = self.settings.get("logging", {}).get("alerts_only", False)
         
+        # Filtres de signaux - utiliser le profil actif
+        signal_config = self.settings.get("signal_filters", {})
+        active_profile = signal_config.get("active_profile", "balanced")
+        profiles = signal_config.get("profiles", {})
+        
+        self.signal_filters = profiles.get(active_profile, {})
+        self.filters_enabled = self.signal_filters.get("enabled", False)
+        
+        if not self.alerts_only:
+            logger.info(f"🎛️ Profil filtres: {active_profile} ({'activé' if self.filters_enabled else 'désactivé'})")
+        
         if not self.alerts_only:
             logger.info(f"📋 Settings: refresh={self.settings['interface']['refresh_seconds']}s")
         
@@ -150,6 +168,58 @@ class StockScanner:
         
         if not self.alerts_only:
             logger.info(f"📊 {len(self.symbols_config)} symboles à surveiller: {list(self.symbols_config.keys())}")
+        return True
+    
+    def should_alert_signal(self, alert_data: Dict) -> bool:
+        """Filtre les signaux selon la configuration"""
+        if not self.filters_enabled:
+            return True
+            
+        # Type de signal
+        signal_type = alert_data.get('type', 'unknown')
+        
+        # Filtrer breakouts
+        if signal_type in ['resistance_breakout', 'support_breakdown']:
+            allowed_breakouts = self.signal_filters.get("allowed_breakout_types", [])
+            if allowed_breakouts and signal_type not in allowed_breakouts:
+                return False
+                
+        # Filtrer catalysts
+        else:
+            allowed_catalysts = self.signal_filters.get("allowed_catalyst_types", [])
+            blocked_catalysts = self.signal_filters.get("blocked_catalyst_types", [])
+            
+            if allowed_catalysts and signal_type not in allowed_catalysts:
+                return False
+            if blocked_catalysts and signal_type in blocked_catalysts:
+                return False
+        
+        # Filtrer par fiabilité
+        min_reliability = self.signal_filters.get("min_reliability", "low")
+        signal_reliability = alert_data.get('catalyst', {}).get('reliability', 'low')
+        reliability_levels = {"low": 0, "medium": 1, "high": 2}
+        
+        if reliability_levels.get(signal_reliability, 0) < reliability_levels.get(min_reliability, 0):
+            return False
+            
+        # Filtrer par % de mouvement
+        min_change = self.signal_filters.get("min_change_percent", 0.0)
+        change_pct = abs(alert_data.get('change_pct', 0.0))
+        if change_pct < min_change:
+            return False
+            
+        # Filtrer par volume spike
+        require_volume = self.signal_filters.get("require_volume_spike", False)
+        has_volume_spike = alert_data.get('volume_spike', False)
+        if require_volume and not has_volume_spike:
+            return False
+            
+        # Filtrer par secteur
+        allowed_sectors = self.signal_filters.get("allowed_sectors", [])
+        signal_sector = alert_data.get('sector', 'unknown')
+        if allowed_sectors and signal_sector not in allowed_sectors:
+            return False
+            
         return True
         
     def _parse_config(self, config_file: str) -> Dict[str, dict]:
@@ -222,18 +292,58 @@ class StockScanner:
                 
             sector = self.sector_map.get(symbol, 'unknown')
             
-            # NOUVELLE API OPTIMISÉE : récupérer dernière bougie + niveaux S/R en cache
-            data_result = get_latest_data_with_cached_levels(symbol, self.data_provider, self.settings)
+            # Mode replay ou temps réel
+            debug_config = self.settings.get("debug", {})
+            candle_offset = debug_config.get("candle_offset", 0)
+            replay_mode = debug_config.get("replay_mode", False)
             
-            if data_result is None:
-                logger.warning(f'⚠️  Impossible de récupérer les données pour {symbol}')
-                return None
+            if replay_mode and candle_offset > 0:
+                # Mode replay : récupérer les données historiques complètes
+                df_full, provider_used = self.data_provider.fetch_data(
+                    symbol,
+                    days=self.settings["data"]["days_fetch"], 
+                    period=self.settings["data"]["period_candles"]
+                )
                 
-            latest_candle = data_result['latest_candle']
-            support_levels = data_result['support_levels'] 
-            resistance_levels = data_result['resistance_levels']
-            provider_used = data_result['provider_used']
-            cache_hit = data_result['cache_hit']
+                if df_full is None or len(df_full) <= candle_offset:
+                    logger.debug(f"Pas assez de données pour offset {candle_offset} sur {symbol}")
+                    return None
+                
+                # Prendre la bougie à l'offset demandé
+                target_idx = -(candle_offset + 1)  # -1 = dernière, -2 = avant-dernière, etc.
+                target_candle = df_full.iloc[target_idx]
+                latest_candle = {
+                    'Close': float(target_candle['Close']),
+                    'High': float(target_candle['High']),
+                    'Low': float(target_candle['Low']),
+                    'Volume': float(target_candle['Volume']) if 'Volume' in df_full.columns else 0,
+                    'timestamp': df_full.index[target_idx].isoformat()
+                }
+                
+                # Calculer S/R sur les données jusqu'à cette bougie (exclure les bougies futures)
+                from tabs import find_levels
+                df_until_target = df_full.iloc[:target_idx+1]
+                support_levels, resistance_levels = find_levels(
+                    df_until_target,
+                    self.settings["support_resistance"]["order"],
+                    self.settings["support_resistance"]["cluster_threshold"]
+                )
+                cache_hit = False
+                
+                print(f"🔄 [REPLAY] {symbol} bougie offset {candle_offset} ({df_full.index[target_idx].strftime('%Y-%m-%d %H:%M')})")
+            else:
+                # Mode temps réel normal
+                data_result = get_latest_data_with_cached_levels(symbol, self.data_provider, self.settings)
+                
+                if data_result is None:
+                    logger.warning(f'⚠️  Impossible de récupérer les données pour {symbol}')
+                    return None
+                    
+                latest_candle = data_result['latest_candle']
+                support_levels = data_result['support_levels'] 
+                resistance_levels = data_result['resistance_levels']
+                provider_used = data_result['provider_used']
+                cache_hit = data_result['cache_hit']
             
             if cache_hit:
                 logger.debug(f"📦 {symbol}: Cache HIT S/R")
@@ -275,6 +385,31 @@ class StockScanner:
             alert_info = catalyst_info or breakout_info
             
             if alert_info:
+                # Calculer le change_pct pour le filtrage
+                try:
+                    df_price, _ = self.data_provider.fetch_data(symbol, days=2, period=2)
+                    if df_price is not None and len(df_price) >= 2:
+                        previous_price = float(df_price['Close'].iloc[-2])
+                        change_pct = ((current_price - previous_price) / previous_price * 100)
+                    else:
+                        change_pct = alert_info.get('change_pct', 0.0)  # Fallback depuis catalyst
+                except:
+                    change_pct = alert_info.get('change_pct', 0.0)
+                
+                # Construire les données d'alerte complètes pour le filtre
+                alert_data = {
+                    'symbol': symbol,
+                    'type': alert_info.get('type', 'unknown'),
+                    'change_pct': change_pct,
+                    'sector': sector,
+                    'volume_spike': latest_candle.get('volume_spike', False),
+                    'catalyst': alert_info.get('catalyst', {}) if 'catalyst' in alert_info else alert_info
+                }
+                
+                # APPLIQUER LES FILTRES
+                if not self.should_alert_signal(alert_data):
+                    return None  # Signal filtré
+                
                 # Déterminer le type d'alerte
                 alert_type = alert_info.get('type', 'unknown')
                 is_technical = alert_type in ['resistance_breakout', 'support_breakdown']
@@ -326,7 +461,7 @@ class StockScanner:
         return None
         
     def display_alert(self, alert: Dict):
-        """Affiche une alerte formatée"""
+        """Affiche une alerte formatée sur une ligne"""
         symbol = alert['symbol']
         catalyst = alert['catalyst']
         current_price = alert['current_price']
@@ -334,47 +469,19 @@ class StockScanner:
         is_technical = alert.get('is_technical', False)
         
         change_pct = ((current_price - previous_price) / previous_price) * 100
-        change_direction = "📈" if change_pct > 0 else "📉"
+        change_direction = "+" if change_pct > 0 else "-"
         
-        # Type d'alerte
-        alert_icon = "🔧" if is_technical else "🚨"
-        alert_title = "BREAKOUT TECHNIQUE" if is_technical else "CATALYST DÉTECTÉ"
+        # Format compact sur une ligne
+        timestamp = datetime.now().strftime('%H:%M:%S')
+        sector = alert['sector'].upper()
+        price = f"${current_price:.2f}"
+        change = f"({change_direction}{abs(change_pct):.2f}%)"
+        type_str = catalyst.get('type', 'N/A').upper().replace('_', ' ')
+        description = catalyst.get('description', 'N/A')
+        tradeable = "OUI" if catalyst.get('tradeable', False) else "NON"
+        signal_type = "TECH" if is_technical else "IA"
         
-        print("\n" + "="*80)
-        print(f"{alert_icon} {alert_title} - {datetime.now().strftime('%H:%M:%S')}")
-        print("="*80)
-        print(f"📊 Symbole: {symbol} ({alert['sector'].upper()})")
-        print(f"💰 Prix: ${current_price:.2f} ({change_direction} {change_pct:+.2f}%)")
-        print(f"🔍 Type: {catalyst.get('type', 'N/A').upper().replace('_', ' ')}")
-        print(f"📝 Description: {catalyst.get('description', 'N/A')}")
-        
-        if is_technical:
-            # Affichage spécial pour les breakouts
-            level = catalyst.get('level', 0)
-            direction = catalyst.get('direction', 'N/A')
-            print(f"📏 Niveau: ${level:.2f}")
-            print(f"➡️  Direction: {direction}")
-            print(f"⚡ Signal: TECHNIQUE")
-            
-            # Afficher les niveaux proches
-            if alert.get('support_levels'):
-                supports = [f"${s:.2f}" for s in alert['support_levels']]
-                print(f"🟢 Supports: {', '.join(supports)}")
-            if alert.get('resistance_levels'):
-                resistances = [f"${r:.2f}" for r in alert['resistance_levels']]
-                print(f"🔴 Résistances: {', '.join(resistances)}")
-        else:
-            # Affichage pour les catalysts IA
-            print(f"⭐ Fiabilité: {catalyst.get('reliability', 'N/A').upper()}")
-            print(f"💼 Tradeable: {'✅ OUI' if catalyst.get('tradeable', False) else '❌ NON'}")
-            print(f"🤖 Signal: INTELLIGENCE ARTIFICIELLE")
-            
-        print(f"📡 Source: {alert['provider']}")
-        print("="*80)
-        
-        # Log pour historique
-        signal_type = "TECHNIQUE" if is_technical else "IA"
-        logger.info(f"{alert_icon} ALERTE {signal_type}: {symbol} {change_pct:+.2f}% - {catalyst.get('type', 'N/A')}")
+        print(f"{timestamp} - {symbol} ({sector}) {price} {change} - {type_str} - {description} - {tradeable} - {signal_type}")
         
         self.alerts_count += 1
         
