@@ -808,11 +808,18 @@ class StockScanner:
         return alerts_found
 
     def run_continuous_scan(self):
-        """Run continuous scanning loop"""
-        logger.info("🚀 Starting continuous scanner...")
-        logger.info(f"⏱️  Interval: {self.settings['interface']['refresh_seconds']} seconds")
-        logger.info(f"🔧 Max workers: {self.settings.get('scanning', {}).get('max_workers', DEFAULT_MAX_WORKERS)}")
-        logger.info("📊 Press Ctrl+C to stop")
+        """Run continuous scanning loop (or single scan in backtest mode)"""
+        # Check if backtest mode
+        backtest_enabled = self.settings.get("backtest", {}).get("enabled", False)
+
+        if backtest_enabled:
+            iteration = self.settings.get("backtest", {}).get("iteration", 0)
+            logger.info(f"🔍 BACKTEST MODE - Single scan (iteration {iteration})")
+        else:
+            logger.info("🚀 Starting continuous scanner...")
+            logger.info(f"⏱️  Interval: {self.settings['interface']['refresh_seconds']} seconds")
+            logger.info(f"🔧 Max workers: {self.settings.get('scanning', {}).get('max_workers', DEFAULT_MAX_WORKERS)}")
+            logger.info("📊 Press Ctrl+C to stop")
 
         self.is_running = True
         scan_count = 0
@@ -824,7 +831,7 @@ class StockScanner:
             start_time = time.time()
 
             if not self.alerts_only:
-                print(f"\n🔄 Scan #{scan_count} - {datetime.now().strftime('%H:%M:%S')}")
+                print(f"\n🔄 Scan #{scan_count} - {datetime.now(EST).strftime('%Y-%m-%d %H:%M:%S')}")
                 print("-" * 50)
 
             alerts_found = self.scan_all_symbols()
@@ -849,6 +856,11 @@ class StockScanner:
             if current_time - last_cleanup_time > cleanup_interval_seconds:
                 self.cleanup_old_alerts()
                 last_cleanup_time = current_time
+
+            # BACKTEST MODE: Stop after one scan
+            if backtest_enabled:
+                logger.info("✅ Backtest scan completed - Exiting")
+                break
 
             # Wait before next scan (interruptible)
             if self.stop_event.wait(self.settings['interface']['refresh_seconds']):
