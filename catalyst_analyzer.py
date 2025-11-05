@@ -89,29 +89,37 @@ class CatalystAnalyzer:
         """Détecte un mouvement significatif basé sur la moyenne historique"""
         if len(df) < 2:
             return False, 0.0, "NONE"
-        
+
         current_price = df['Close'].iloc[-1]
         previous_price = df['Close'].iloc[-2]
-        
+
         # Protection division par zéro
         if previous_price == 0:
             logger.warning("Prix précédent = 0, impossible de calculer %")
             return False, 0.0, "NONE"
-            
+
+        # Vérifier que les bougies sont consécutives (pas de trou dans les données)
+        date_current = df.index[-1]
+        date_previous = df.index[-2]
+        days_diff = (date_current - date_previous).days
+        if days_diff > 4:  # Plus de 4 jours = données manquantes (week-end max = 2 jours + jour férié)
+            logger.warning(f"Trou dans les données: {days_diff} jours entre {date_previous.date()} et {date_current.date()}")
+            return False, 0.0, "NONE"
+
         change_pct = ((current_price - previous_price) / previous_price) * 100
-        
+
         # Calcul du seuil dynamique basé sur la moyenne
         avg_move = self.calculate_average_move(df)
         dynamic_threshold = avg_move * self.multiplier
-        
+
         # Seuil minimum pour éviter les fausses alertes sur actions très stables
         dynamic_threshold = max(dynamic_threshold, self.min_threshold)
-        
+
         is_significant = abs(change_pct) >= dynamic_threshold
         direction = "UP" if change_pct > 0 else "DOWN"
-        
+
         logger.info(f"Mouvement: {change_pct:.2f}%, Moyenne: {avg_move:.2f}%, Seuil: {dynamic_threshold:.2f}%, Significatif: {is_significant}")
-        
+
         return is_significant, change_pct, direction
 
     def get_news_context(self, symbol, days=1) -> List[str]:
