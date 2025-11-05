@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Scanner - Documentation Technique</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px 20px;
+            text-align: center;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .section {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        h2 {
+            color: #667eea;
+            font-size: 2em;
+            margin-bottom: 20px;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        h3 {
+            color: #764ba2;
+            font-size: 1.5em;
+            margin-top: 25px;
+            margin-bottom: 15px;
+        }
+
+        h4 {
+            color: #555;
+            font-size: 1.2em;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .feature-card {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .feature-card h4 {
+            color: #667eea;
+            margin-top: 0;
+        }
+
+        .code-block {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin: 15px 0;
+            font-family: 'Courier New', monospace;
+        }
+
+        .function-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .function-item {
+            background: #f8f9fa;
+            border-left: 4px solid #764ba2;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+
+        .function-item strong {
+            color: #764ba2;
+            font-size: 1.1em;
+        }
+
+        .function-item .params {
+            color: #666;
+            font-style: italic;
+            margin: 5px 0;
+        }
+
+        .function-item .description {
+            margin-top: 8px;
+        }
+
+        .diagram-container {
+            margin: 30px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+
+        .info {
+            background: #d1ecf1;
+            border-left: 4px solid #17a2b8;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        table th, table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        table th {
+            background: #667eea;
+            color: white;
+        }
+
+        table tr:hover {
+            background: #f5f5f5;
+        }
+
+        .toc {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+
+        .toc ul {
+            list-style: none;
+        }
+
+        .toc li {
+            padding: 5px 0;
+        }
+
+        .toc a {
+            color: #667eea;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+
+        .toc a:hover {
+            color: #764ba2;
+        }
+
+        footer {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            margin-top: 40px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📈 Stock Scanner</h1>
+            <p>Système de détection automatique de breakouts techniques et catalyseurs boursiers</p>
+        </header>
+
+        <div class="toc section">
+            <h3>📑 Table des matières</h3>
+            <ul>
+                <li><a href="#overview">1. Vue d'ensemble</a></li>
+                <li><a href="#features">2. Fonctionnalités principales</a></li>
+                <li><a href="#architecture">3. Architecture du système</a></li>
+                <li><a href="#flow">4. Flow d'exécution</a></li>
+                <li><a href="#components">5. Composants principaux</a></li>
+                <li><a href="#functions">6. Fonctions clés</a></li>
+                <li><a href="#modes">7. Modes d'opération</a></li>
+                <li><a href="#configuration">8. Configuration</a></li>
+            </ul>
+        </div>
+
+        <section id="overview" class="section">
+            <h2>1. Vue d'ensemble</h2>
+            <p>Le <strong>Stock Scanner</strong> est un système de surveillance automatique des marchés boursiers qui détecte en temps réel deux types d'événements significatifs :</p>
+
+            <div class="features">
+                <div class="feature-card">
+                    <h4>🔧 Breakouts Techniques</h4>
+                    <p>Détection automatique des cassures de niveaux de support et résistance avec confirmation de volume.</p>
+                </div>
+                <div class="feature-card">
+                    <h4>🚨 Catalyseurs</h4>
+                    <p>Identification des mouvements de prix significatifs avec analyse IA optionnelle (Claude API).</p>
+                </div>
+                <div class="feature-card">
+                    <h4>⏱️ Temps Réel</h4>
+                    <p>Surveillance continue avec rafraîchissement configurable (défaut: 60 secondes).</p>
+                </div>
+                <div class="feature-card">
+                    <h4>📊 Backtest</h4>
+                    <p>Mode test sur données historiques pour valider la stratégie de détection.</p>
+                </div>
+            </div>
+
+            <div class="info">
+                <strong>🎯 Objectif :</strong> Alerter l'utilisateur dès qu'un mouvement significatif est détecté sur les symboles surveillés, permettant une réaction rapide aux opportunités de trading.
+            </div>
+        </section>
+
+        <section id="features" class="section">
+            <h2>2. Fonctionnalités principales</h2>
+
+            <h3>✅ Détection technique</h3>
+            <ul style="margin-left: 20px;">
+                <li>Calcul automatique des niveaux de support et résistance (algorithme scipy argrelextrema)</li>
+                <li>Détection de breakouts avec confirmation de volume (1.5x la moyenne)</li>
+                <li>Analyse de mouvements significatifs avec seuil dynamique</li>
+            </ul>
+
+            <h3>✅ Performance</h3>
+            <ul style="margin-left: 20px;">
+                <li>Scanning parallèle multi-thread (ThreadPoolExecutor)</li>
+                <li>Cache des niveaux S/R pour éviter les recalculs</li>
+                <li>Rate limiting pour protéger les APIs</li>
+                <li>Thread-safe avec locks pour les opérations critiques</li>
+            </ul>
+
+            <h3>✅ Sources de données multiples</h3>
+            <ul style="margin-left: 20px;">
+                <li><strong>Yahoo Finance</strong> (fallback par défaut)</li>
+                <li><strong>Polygon.io</strong> (si API key disponible)</li>
+                <li><strong>Alpha Vantage</strong> (si API key disponible)</li>
+                <li>Failover automatique entre sources</li>
+            </ul>
+
+            <h3>✅ Modes d'opération</h3>
+            <ul style="margin-left: 20px;">
+                <li><strong>Normal :</strong> Surveillance continue en temps réel</li>
+                <li><strong>Backtest :</strong> Test sur fenêtre historique glissante</li>
+                <li><strong>Filtrage :</strong> all / technical_only / catalyst_only</li>
+            </ul>
+        </section>
+
+        <section id="architecture" class="section">
+            <h2>3. Architecture du système</h2>
+
+            <div class="diagram-container">
+                <div class="mermaid">
+graph TB
+    A[scanner.py<br/>Point d'entrée] --> B[Chargement Configuration]
+    B --> C{Mode ?}
+    C -->|Normal| D[Surveillance Continue]
+    C -->|Backtest| E[Test Historique]
+
+    D --> F[Scan Parallèle]
+    E --> F
+
+    F --> G[Pour chaque symbole]
+    G --> H[MultiSourceDataProvider]
+    H -->|Fetch| I[Yahoo Finance]
+    H -->|Fetch| J[Polygon.io]
+    H -->|Fetch| K[Alpha Vantage]
+
+    I --> L[Cache + Calcul S/R]
+    J --> L
+    K --> L
+
+    L --> M[detect_scanner_breakouts]
+    L --> N[CatalystAnalyzer]
+
+    M --> O{Breakout<br/>détecté ?}
+    N --> P{Catalyst<br/>détecté ?}
+
+    O -->|Oui| Q[Créer alerte technique]
+    P -->|Oui| R[Créer alerte catalyst]
+
+    Q --> S[Afficher alertes]
+    R --> S
+
+    S --> T{Mode continu ?}
+    T -->|Oui| U[Attendre intervalle]
+    U --> F
+    T -->|Non| V[Terminer]
+                </div>
+            </div>
+        </section>
+
+        <section id="flow" class="section">
+            <h2>4. Flow d'exécution détaillé</h2>
+
+            <h3>📋 Étape 1 : Initialisation</h3>
+            <div class="code-block">
+1. Chargement settings.json (paramètres globaux)
+2. Chargement symbols.json (liste des symboles à surveiller)
+3. Initialisation MultiSourceDataProvider
+4. Initialisation CatalystAnalyzer (avec API Claude si disponible)
+5. Setup signaux (SIGINT, SIGTERM pour shutdown propre)
+            </div>
+
+            <h3>🔄 Étape 2 : Boucle principale (mode normal)</h3>
+            <div class="diagram-container">
+                <div class="mermaid">
+sequenceDiagram
+    participant Main as Scanner Main Loop
+    participant Pool as ThreadPool
+    participant Worker as Scan Worker
+    participant Data as Data Provider
+    participant SR as S/R Calculator
+    participant Break as Breakout Detector
+    participant Cat as Catalyst Analyzer
+
+    Main->>Main: Vérifier heures marché
+    Main->>Pool: Submit scan_symbol pour tous symboles
+
+    loop Pour chaque symbole (parallèle)
+        Pool->>Worker: scan_symbol(symbol)
+        Worker->>Data: fetch_data(symbol, 120 candles)
+        Data-->>Worker: DataFrame OHLCV
+
+        Worker->>SR: Calculer S/R (avec cache)
+        SR-->>Worker: support_levels, resistance_levels
+
+        Worker->>Break: detect_scanner_breakouts(df, S, R)
+        Break-->>Worker: breakout_info ou None
+
+        Worker->>Cat: analyze_symbol(symbol, df)
+        Cat-->>Worker: catalyst_info ou None
+
+        Worker->>Worker: Filtrer selon mode (all/technical/catalyst)
+        Worker->>Worker: Vérifier cooldown (no duplicate)
+        Worker-->>Pool: Liste d'alertes
+    end
+
+    Pool-->>Main: Toutes les alertes
+    Main->>Main: Afficher chaque alerte
+    Main->>Main: Attendre intervalle (60s)
+    Main->>Main: Répéter
+                </div>
+            </div>
+
+            <h3>⏪ Étape 2bis : Mode backtest</h3>
+            <div class="info">
+                <strong>Différences en mode backtest :</strong>
+                <ul style="margin-left: 20px; margin-top: 10px;">
+                    <li>Calcul de end_date = now(EST) - timedelta(days=10 + iteration)</li>
+                    <li>Fetch 120 bougies se terminant à end_date</li>
+                    <li>Bypass du check heures de marché</li>
+                    <li>Volume spike non requis pour breakouts</li>
+                    <li>Timestamps utilisent la date de la dernière bougie</li>
+                    <li><strong>Une seule exécution puis EXIT (pas de boucle)</strong></li>
+                </ul>
+            </div>
+
+            <h3>🔍 Étape 3 : Scan d'un symbole (détail)</h3>
+            <div class="diagram-container">
+                <div class="mermaid">
+flowchart TD
+    A[scan_symbol START] --> B{Cache S/R<br/>valide ?}
+    B -->|Oui| C[Utiliser cache]
+    B -->|Non| D[Fetch data 120 bougies]
+
+    D --> E[Calculer S/R<br/>scipy.argrelextrema]
+    E --> F[Stocker en cache]
+    F --> C
+
+    C --> G[Extraire 6 dernières bougies]
+    G --> H{detect_scanner_breakouts}
+
+    H --> I{Conditions remplies ?}
+    I -->|Oui| J[breakout_info créé]
+    I -->|Non| K[breakout_info = None]
+
+    J --> L[analyze_symbol]
+    K --> L
+
+    L --> M{Mouvement<br/>significatif ?}
+    M -->|Oui| N{API Claude<br/>disponible ?}
+    M -->|Non| O[catalyst_info = None]
+
+    N -->|Oui| P[Appel API Claude]
+    N -->|Non| Q[Fallback analysis]
+
+    P --> R[catalyst_info créé]
+    Q --> R
+
+    R --> S[Filtrer selon mode]
+    O --> S
+
+    S --> T{Alertes à<br/>afficher ?}
+    T -->|Oui| U[Créer alertes]
+    T -->|Non| V[Retourner None]
+
+    U --> W[Vérifier cooldown]
+    W --> X{Duplicate ?}
+    X -->|Non| Y[Retourner liste alertes]
+    X -->|Oui| V
+                </div>
+            </div>
+        </section>
+
+        <section id="components" class="section">
+            <h2>5. Composants principaux</h2>
+
+            <h3>📦 scanner.py</h3>
+            <p>Module principal contenant la logique de scanning et d'orchestration.</p>
+
+            <h4>Classe Scanner</h4>
+            <div class="code-block">
+class Scanner:
+    - settings: Dict                 # Configuration globale
+    - symbols_config: Dict           # Symboles à surveiller
+    - data_provider: MultiSourceDataProvider
+    - catalyst_analyzer: CatalystAnalyzer
+    - recent_alerts: Dict            # Cache des alertes (cooldown)
+    - alerts_lock: Lock              # Thread safety
+    - metrics: ScannerMetrics        # Statistiques
+            </div>
+
+            <h3>📦 data_providers.py</h3>
+            <p>Gestion des sources de données avec failover automatique.</p>
+
+            <h4>Classes disponibles</h4>
+            <ul style="margin-left: 20px;">
+                <li><strong>PolygonDataProvider:</strong> Données temps réel via Polygon.io API</li>
+                <li><strong>AlphaVantageDataProvider:</strong> Données historiques via Alpha Vantage API</li>
+                <li><strong>YahooFinanceDataProvider:</strong> Fallback gratuit via yfinance</li>
+                <li><strong>MultiSourceDataProvider:</strong> Orchestration avec failover</li>
+            </ul>
+
+            <div class="code-block">
+def fetch_data(symbol, days=80, period=60, end_date=None):
+    """
+    Retourne: DataFrame avec colonnes OHLCV
+    - Open, High, Low, Close: Prix
+    - Volume: Volume d'échange
+    - Index: Timestamp des bougies
+    """
+            </div>
+
+            <h3>📦 catalyst_analyzer.py</h3>
+            <p>Détection et analyse des catalyseurs (mouvements significatifs).</p>
+
+            <h4>Fonctionnalités</h4>
+            <ul style="margin-left: 20px;">
+                <li>Calcul de seuil dynamique basé sur volatilité récente</li>
+                <li>Détection de mouvements significatifs (% change > threshold)</li>
+                <li>Vérification de volume spike (RVol >= 1.5x)</li>
+                <li>Analyse IA via Claude API (optionnel)</li>
+                <li>Fallback analysis si IA indisponible</li>
+            </ul>
+
+            <div class="code-block">
+def detect_significant_move(df) -> Tuple[bool, float, str]:
+    """
+    Retourne:
+    - is_significant: bool (mouvement détecté)
+    - change_pct: float (pourcentage de variation)
+    - direction: str ("UP" ou "DOWN")
+    """
+            </div>
+
+            <h3>📦 tabs.py</h3>
+            <p>Calcul des niveaux de support et résistance avec cache.</p>
+
+            <div class="code-block">
+def get_latest_data_with_cached_levels(symbol, settings, provider):
+    """
+    Utilise scipy.signal.argrelextrema pour trouver:
+    - Local minima → Support levels
+    - Local maxima → Resistance levels
+
+    Cache: 5 minutes de validité
+    """
+            </div>
+        </section>
+
+        <section id="functions" class="section">
+            <h2>6. Fonctions clés</h2>
+
+            <ul class="function-list">
+                <li class="function-item">
+                    <strong>detect_scanner_breakouts()</strong>
+                    <div class="params">
+                        Params: df, support_levels, resistance_levels, settings, check_volume_spike
+                    </div>
+                    <div class="description">
+                        Détecte les breakouts de résistance (UP) et breakdowns de support (DOWN).
+                        <br><br>
+                        <strong>Conditions breakout résistance :</strong>
+                        <ul style="margin-left: 20px;">
+                            <li>prev_close < resistance</li>
+                            <li>current_high > resistance</li>
+                            <li>current_close > resistance</li>
+                            <li>change_pct >= min_move (défaut 1.0%)</li>
+                            <li>volume_spike (si check_volume_spike=True)</li>
+                        </ul>
+                    </div>
+                </li>
+
+                <li class="function-item">
+                    <strong>CatalystAnalyzer.analyze_symbol()</strong>
+                    <div class="params">
+                        Params: symbol, df, sector
+                    </div>
+                    <div class="description">
+                        Analyse complète d'un symbole pour détecter un catalyseur.
+                        <br><br>
+                        <strong>Étapes :</strong>
+                        <ol style="margin-left: 20px;">
+                            <li>Vérifier heures de marché (bypass en backtest)</li>
+                            <li>detect_significant_move() → seuil dynamique</li>
+                            <li>Calculer volume spike (RVol)</li>
+                            <li>Récupérer news récentes (optionnel)</li>
+                            <li>Appeler API Claude si disponible</li>
+                            <li>Sinon fallback analysis basé sur heuristiques</li>
+                        </ol>
+                    </div>
+                </li>
+
+                <li class="function-item">
+                    <strong>Scanner.scan_symbol()</strong>
+                    <div class="params">
+                        Params: symbol
+                    </div>
+                    <div class="description">
+                        Fonction worker exécutée en parallèle pour chaque symbole.
+                        <br><br>
+                        <strong>Retourne :</strong> Liste d'alertes (0, 1 ou 2) selon détections
+                        <ul style="margin-left: 20px;">
+                            <li>Alerte technique si breakout détecté</li>
+                            <li>Alerte catalyst si mouvement significatif</li>
+                            <li>Les deux si mode="all" et les deux sont détectés</li>
+                        </ul>
+                    </div>
+                </li>
+
+                <li class="function-item">
+                    <strong>Scanner.display_alert()</strong>
+                    <div class="params">
+                        Params: alert (Dict)
+                    </div>
+                    <div class="description">
+                        Formate et affiche une alerte dans la console.
+                        <br><br>
+                        <strong>Affichage différent selon type :</strong>
+                        <ul style="margin-left: 20px;">
+                            <li><strong>Technique :</strong> Niveau S/R, direction, niveaux proches</li>
+                            <li><strong>Catalyst :</strong> Type, fiabilité, tradeable, signal IA</li>
+                        </ul>
+                    </div>
+                </li>
+
+                <li class="function-item">
+                    <strong>calculate_support_resistance()</strong>
+                    <div class="params">
+                        Params: df, order (défaut 5)
+                    </div>
+                    <div class="description">
+                        Calcul des niveaux S/R via scipy.signal.argrelextrema.
+                        <br><br>
+                        <strong>Algorithme :</strong>
+                        <ul style="margin-left: 20px;">
+                            <li>Trouve local minima (Low) → Supports</li>
+                            <li>Trouve local maxima (High) → Résistances</li>
+                            <li>Clustering à 2% pour regrouper niveaux proches</li>
+                            <li>Tri par ordre croissant</li>
+                        </ul>
+                    </div>
+                </li>
+            </ul>
+        </section>
+
+        <section id="modes" class="section">
+            <h2>7. Modes d'opération</h2>
+
+            <h3>🔴 Mode Normal (temps réel)</h3>
+            <div class="code-block">
+{
+  "backtest": {
+    "enabled": false
+  }
+}
+            </div>
+            <ul style="margin-left: 20px;">
+                <li>Surveillance continue avec intervalle configurable</li>
+                <li>Vérification des heures de marché (9:30-16:00 EST)</li>
+                <li>Volume spike requis pour breakouts (1.5x moyenne)</li>
+                <li>Timestamps en temps réel</li>
+                <li>Cooldown entre alertes (30min technique, 2h catalyst)</li>
+            </ul>
+
+            <h3>⏪ Mode Backtest (historique)</h3>
+            <div class="code-block">
+{
+  "backtest": {
+    "enabled": true,
+    "iteration": 0
+  }
+}
+            </div>
+            <ul style="margin-left: 20px;">
+                <li><strong>iteration = 0 :</strong> Teste jour -10</li>
+                <li><strong>iteration = 1 :</strong> Teste jour -11</li>
+                <li><strong>iteration = N :</strong> Teste jour -(10+N)</li>
+                <li>Charge 120 bougies se terminant à la date calculée</li>
+                <li>Pas de check heures de marché</li>
+                <li>Volume spike NON requis (données historiques)</li>
+                <li>Une seule exécution puis exit</li>
+            </ul>
+
+            <div class="warning">
+                <strong>⚠️ Limitation actuelle (backtest) :</strong> La détection de breakouts peut générer des faux positifs si la bougie gap au-dessus/en-dessous du niveau S/R sans le traverser réellement.
+            </div>
+
+            <h3>🎯 Filtres d'alertes</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Mode</th>
+                        <th>Description</th>
+                        <th>Alertes affichées</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>all</strong></td>
+                        <td>Toutes les alertes</td>
+                        <td>Breakouts techniques + Catalysts</td>
+                    </tr>
+                    <tr>
+                        <td><strong>technical_only</strong></td>
+                        <td>Breakouts uniquement</td>
+                        <td>Résistance breakout + Support breakdown</td>
+                    </tr>
+                    <tr>
+                        <td><strong>catalyst_only</strong></td>
+                        <td>Catalysts uniquement</td>
+                        <td>Mouvements significatifs (avec/sans IA)</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <section id="configuration" class="section">
+            <h2>8. Configuration</h2>
+
+            <h3>📄 settings.json</h3>
+            <div class="code-block">
+{
+  "data": {
+    "days_fetch": 150,          // Bougies à fetch pour calcul S/R
+    "period_candles": 120       // Bougies retournées
+  },
+  "breakout": {
+    "min_move_percent": 1.0,    // Mouvement minimum (%)
+    "volume_spike_threshold": 1.5  // Volume requis (x moyenne)
+  },
+  "catalyst": {
+    "multiplier": 1.5,          // Multiplicateur seuil dynamique
+    "min_threshold": 1.0        // Seuil minimum absolu (%)
+  },
+  "market": {
+    "open_hour": 9,
+    "open_minute": 30,
+    "close_hour": 16,
+    "close_minute": 0
+  },
+  "interface": {
+    "refresh_seconds": 60       // Intervalle entre scans
+  },
+  "backtest": {
+    "enabled": false,
+    "iteration": 0
+  },
+  "alerts": {
+    "mode": "all"               // all | technical_only | catalyst_only
+  }
+}
+            </div>
+
+            <h3>📄 symbols.json</h3>
+            <div class="code-block">
+{
+  "AAPL": "TECH",
+  "TSLA": "AUTO",
+  "NVDA": "TECH",
+  ...
+}
+            </div>
+            <p>Format : <code>{ "SYMBOL": "SECTOR" }</code></p>
+
+            <h3>🔑 Variables d'environnement</h3>
+            <ul style="margin-left: 20px;">
+                <li><strong>ANTHROPIC_API_KEY :</strong> API Claude pour analyse IA des catalysts</li>
+                <li><strong>POLYGON_API_KEY :</strong> API Polygon.io pour données temps réel</li>
+                <li><strong>ALPHA_VANTAGE_API_KEY :</strong> API Alpha Vantage pour données historiques</li>
+            </ul>
+
+            <div class="info">
+                <strong>💡 Note :</strong> Si aucune API key n'est fournie, le système utilise Yahoo Finance comme fallback (gratuit mais peut avoir des gaps de données).
+            </div>
+        </section>
+
+        <section class="section">
+            <h2>📊 Métriques et Performance</h2>
+
+            <h3>Métriques trackées</h3>
+            <ul style="margin-left: 20px;">
+                <li>Nombre de scans effectués</li>
+                <li>Durée moyenne par scan</li>
+                <li>Nombre d'alertes (techniques vs catalysts)</li>
+                <li>Nombre d'erreurs</li>
+                <li>Nombre d'appels API</li>
+            </ul>
+
+            <h3>Optimisations</h3>
+            <ul style="margin-left: 20px;">
+                <li><strong>Cache S/R :</strong> 5 minutes de validité → évite recalculs inutiles</li>
+                <li><strong>Parallel scanning :</strong> ThreadPoolExecutor (5 workers par défaut)</li>
+                <li><strong>Rate limiting :</strong> 50 calls / 60 secondes</li>
+                <li><strong>Thread safety :</strong> Locks sur recent_alerts et métriques</li>
+            </ul>
+        </section>
+
+        <footer>
+            <p>Stock Scanner - Documentation Technique v1.0</p>
+            <p>Généré le <script>document.write(new Date().toLocaleDateString('fr-FR'))</script></p>
+        </footer>
+    </div>
+
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            }
+        });
+    </script>
+</body>
+</html>
