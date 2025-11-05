@@ -1,5 +1,9 @@
 .project
 __pycache__/
+*.pyc
+*.pyo
+*.pyd
 scanner.log
 scanner.pid
+venv/
 
