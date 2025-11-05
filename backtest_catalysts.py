@@ -165,8 +165,8 @@ def backtest_symbol(symbol, sector, config, data_provider, analyzer):
         if subset_df is None:
             continue
         
-        # Test de détection de catalyseur
-        is_significant, change_pct, direction = analyzer.detect_significant_move(subset_df, threshold=5.0)
+        # Test de détection de catalyseur (utilise le seuil dynamique)
+        is_significant, change_pct, direction = analyzer.detect_significant_move(subset_df)
         
         if is_significant:
             # Simule l'analyse complète (sans API car c'est du backtest)
