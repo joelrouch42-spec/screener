@@ -58,24 +58,32 @@ class PolygonProvider(DataProvider):
         except:
             return False
     
-    def fetch_data(self, symbol, days=80, period=60):
-        """Fetch historical daily data from Polygon"""
-        end_date = datetime.now()
+    def fetch_data(self, symbol, days=80, period=60, end_date=None):
+        """Fetch historical daily data from Polygon
+
+        Args:
+            symbol: Stock symbol
+            days: Number of days to fetch
+            period: Number of candles to return
+            end_date: Optional end date (for backtest), defaults to now()
+        """
+        if end_date is None:
+            end_date = datetime.now()
         start_date = end_date - timedelta(days=days)
-        
+
         url = f"{self.base_url}/v2/aggs/ticker/{symbol}/range/1/day/{start_date.strftime('%Y-%m-%d')}/{end_date.strftime('%Y-%m-%d')}"
         params = {
             'adjusted': 'true',
             'sort': 'asc',
             'apiKey': self.api_key
         }
-        
+
         response = requests.get(url, params=params, timeout=10)
         data = response.json()
-        
+
         if data.get('status') != 'OK' or not data.get('results'):
             raise ValueError(f"Polygon: No data for {symbol}")
-        
+
         # Convert to DataFrame
         results = data['results']
         df = pd.DataFrame(results)
@@ -89,7 +97,7 @@ class PolygonProvider(DataProvider):
             'v': 'Volume'
         })
         df = df[['Open', 'High', 'Low', 'Close', 'Volume']].tail(period)
-        
+
         return df
     
     def get_live_price(self, symbol):
@@ -128,21 +136,28 @@ class AlphaVantageProvider(DataProvider):
         except:
             return False
     
-    def fetch_data(self, symbol, days=80, period=60):
-        """Fetch historical daily data from Alpha Vantage"""
+    def fetch_data(self, symbol, days=80, period=60, end_date=None):
+        """Fetch historical daily data from Alpha Vantage
+
+        Args:
+            symbol: Stock symbol
+            days: Number of days to fetch
+            period: Number of candles to return
+            end_date: Optional end date (for backtest), defaults to now()
+        """
         params = {
             'function': 'TIME_SERIES_DAILY',
             'symbol': symbol,
             'outputsize': 'full',
             'apikey': self.api_key
         }
-        
+
         response = requests.get(self.base_url, params=params, timeout=10)
         data = response.json()
-        
+
         if 'Time Series (Daily)' not in data:
             raise ValueError(f"Alpha Vantage: No data for {symbol}")
-        
+
         # Convert to DataFrame
         ts = data['Time Series (Daily)']
         df = pd.DataFrame.from_dict(ts, orient='index')
@@ -156,8 +171,14 @@ class AlphaVantageProvider(DataProvider):
             '5. volume': 'Volume'
         })
         df = df.astype(float)
-        df = df[['Open', 'High', 'Low', 'Close', 'Volume']].tail(period)
-        
+        df = df[['Open', 'High', 'Low', 'Close', 'Volume']]
+
+        # Filter by end_date if specified (backtest mode)
+        if end_date is not None:
+            df = df[df.index <= end_date]
+
+        df = df.tail(period)
+
         return df
     
     def get_live_price(self, symbol):
@@ -183,20 +204,28 @@ class YahooFinanceProvider(DataProvider):
         """Yahoo Finance is always available"""
         return True
     
-    def fetch_data(self, symbol, days=80, period=60):
-        """Fetch historical data from Yahoo Finance"""
-        end_date = datetime.now()
+    def fetch_data(self, symbol, days=80, period=60, end_date=None):
+        """Fetch historical data from Yahoo Finance
+
+        Args:
+            symbol: Stock symbol
+            days: Number of days to fetch
+            period: Number of candles to return
+            end_date: Optional end date (for backtest), defaults to now()
+        """
+        if end_date is None:
+            end_date = datetime.now()
         start_date = end_date - timedelta(days=days)
-        
+
         ticker = yf.Ticker(symbol)
         hist = ticker.history(start=start_date, end=end_date, interval="1d")
-        
+
         if hist.empty:
             raise ValueError(f"Yahoo Finance: No data for {symbol}")
-        
+
         hist = hist.tail(period)
         df = hist[['Open', 'High', 'Low', 'Close', 'Volume']].copy()
-        
+
         return df
     
     def get_live_price(self, symbol):
@@ -235,15 +264,22 @@ class MultiSourceDataProvider:
                 if self.debug:
                     print(f"❌ {provider.__class__.__name__} non disponible")
     
-    def fetch_data(self, symbol, days=80, period=60):
-        """Try each provider until one succeeds"""
+    def fetch_data(self, symbol, days=80, period=60, end_date=None):
+        """Try each provider until one succeeds
+
+        Args:
+            symbol: Stock symbol
+            days: Number of days to fetch
+            period: Number of candles to return
+            end_date: Optional end date (for backtest), defaults to now()
+        """
         last_error = None
-        
+
         for provider in self.available_providers:
             try:
                 if self.debug:
                     print(f"🔄 Tentative {provider.__class__.__name__}...")
-                df = provider.fetch_data(symbol, days, period)
+                df = provider.fetch_data(symbol, days, period, end_date=end_date)
                 if self.debug:
                     print(f"✅ Données récupérées via {provider.__class__.__name__}")
                 return df, provider
@@ -252,7 +288,7 @@ class MultiSourceDataProvider:
                     print(f"❌ {provider.__class__.__name__} échoué: {e}")
                 last_error = e
                 continue
-        
+
         raise ValueError(f"Aucune source de données disponible. Dernière erreur: {last_error}")
     
     def get_live_price(self, symbol, preferred_provider=None):

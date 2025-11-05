@@ -71,5 +71,10 @@
     "current_price_line_width": 2,
     "current_price_line_opacity": 0.8,
     "description": "Paramètres graphiques"
+  },
+  "backtest": {
+    "enabled": false,
+    "iteration": 0,
+    "description": "Mode backtest - enabled=true pour activer, iteration=0 pour jour -10, iteration=1 pour jour -9, etc."
   }
 }

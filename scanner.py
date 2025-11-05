@@ -350,6 +350,10 @@ class StockScanner:
         Returns:
             True if market is open
         """
+        # Backtest mode: always open
+        if self.settings.get("backtest", {}).get("enabled", False):
+            return True
+
         dt = dt or datetime.now(EST)
 
         # Weekend
@@ -576,10 +580,17 @@ class StockScanner:
             previous_price = None
 
             try:
+                # Backtest mode: calculate end_date based on iteration
+                end_date = None
+                if self.settings.get("backtest", {}).get("enabled", False):
+                    iteration = self.settings.get("backtest", {}).get("iteration", 0)
+                    end_date = datetime.now() - timedelta(days=10 + iteration)
+
                 df_full, _ = self.data_provider.fetch_data(
                     symbol,
                     days=self.settings["data"]["days_fetch"],
-                    period=self.settings["data"]["period_candles"]
+                    period=self.settings["data"]["period_candles"],
+                    end_date=end_date
                 )
                 self.metrics.record_api_call()
 
