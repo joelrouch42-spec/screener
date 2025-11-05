@@ -1,9 +1,0 @@
-# Configuration pour backtest
-# Format: SYMBOL MIN_RVOL MIN_BETA MIN_RVOL_CHANGE PROVIDER
-# MIN_RVOL: Seuil de volume relatif (ex: 1.5 = 150% du volume moyen)
-# MIN_BETA: Volatilité minimale (ex: 0.8)
-# MIN_RVOL_CHANGE: Changement minimal de RVol (ex: 0.3)
-
-AAPL 1.5 0.8 0.3 auto
-NVDA 1.5 0.8 0.3 auto
-TSLA 1.5 0.8 0.3 auto
