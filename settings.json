@@ -76,5 +76,9 @@
     "enabled": false,
     "iteration": 0,
     "description": "Mode backtest - enabled=true pour activer, iteration=0 pour jour -10, iteration=1 pour jour -9, etc."
+  },
+  "alerts": {
+    "mode": "all",
+    "description": "Filtrage des alertes - 'all' = toutes, 'technical_only' = seulement breakouts, 'catalyst_only' = seulement catalysts"
   }
 }

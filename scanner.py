@@ -637,8 +637,18 @@ class StockScanner:
                     logger.error(f"Error analyzing catalyst for {symbol}: {e}", exc_info=True)
                     self.metrics.record_error()
 
-            # Priority: Catalyst (AI) > Technical breakout
-            alert_info = catalyst_info or breakout_info
+            # Apply alert mode filter
+            alert_mode = self.settings.get("alerts", {}).get("mode", "all")
+
+            if alert_mode == "technical_only":
+                # Only technical breakouts
+                alert_info = breakout_info
+            elif alert_mode == "catalyst_only":
+                # Only catalysts
+                alert_info = catalyst_info
+            else:
+                # Default: Priority Catalyst (AI) > Technical breakout
+                alert_info = catalyst_info or breakout_info
 
             if alert_info:
                 # Determine alert type
