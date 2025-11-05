@@ -14,12 +14,18 @@ from data_providers import MultiSourceDataProvider
 from catalyst_analyzer import CatalystAnalyzer, load_settings
 from tabs import SupportResistance
 
-# Setup logging
+# Setup logging - SEULEMENT les alertes
 logging.basicConfig(
-    level=logging.WARNING,  # Réduire le bruit
+    level=logging.ERROR,  # Seulement les erreurs critiques
     format='%(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# Désactiver TOUS les logs sauf erreurs critiques
+logging.getLogger('catalyst_analyzer').setLevel(logging.ERROR)
+logging.getLogger('scanner').setLevel(logging.ERROR)
+logging.getLogger('tabs').setLevel(logging.ERROR)
+logging.getLogger('data_providers').setLevel(logging.ERROR)
 
 def backtest_symbol(symbol, sector, data_provider, catalyst_analyzer, settings, days_back=30):
     """
