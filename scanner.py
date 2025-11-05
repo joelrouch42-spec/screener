@@ -196,10 +196,15 @@ def detect_scanner_breakouts(
 
     # Volume spike check (if available)
     volume_spike = False
+    volume_ratio = 0.0
     if 'Volume' in df.columns and len(df) >= 5:
         current_vol = current['Volume']
         avg_vol = df['Volume'].iloc[-5:].mean()
-        volume_spike = current_vol / avg_vol >= vol_threshold if avg_vol > 0 else False
+        volume_ratio = current_vol / avg_vol if avg_vol > 0 else 0.0
+        volume_spike = volume_ratio >= vol_threshold
+
+    # Debug log
+    logger.debug(f"Breakout check: change={change_pct:.2f}%, vol_ratio={volume_ratio:.2f}x, spike={volume_spike}, S={len(support_levels)}, R={len(resistance_levels)}")
 
     # Check resistance breakouts
     for resistance in resistance_levels:
