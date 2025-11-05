@@ -208,6 +208,11 @@ def detect_scanner_breakouts(
 
     # Debug log
     logger.info(f"Breakout check: change={change_pct:.2f}%, vol_ratio={volume_ratio:.2f}x, spike={volume_spike}, S={len(support_levels)}, R={len(resistance_levels)}")
+    logger.info(f"  Prices: prev_close=${prev_close:.2f}, current: L=${current_low:.2f} H=${current_high:.2f} C=${current_close:.2f}")
+    if len(resistance_levels) > 0:
+        logger.info(f"  Resistances: {[f'${r:.2f}' for r in resistance_levels[:3]]}")
+    if len(support_levels) > 0:
+        logger.info(f"  Supports: {[f'${s:.2f}' for s in support_levels[:3]]}")
 
     # Check resistance breakouts
     for resistance in resistance_levels:
