@@ -223,11 +223,14 @@ Retourne un JSON avec cette structure exacte:
         if df.empty:
             return None
 
-        # On n'analyse la bougie courante que si le marché est ouvert
-        if not self.is_market_open():
+        # Backtest mode: skip market hours check
+        backtest_mode = self.settings.get("backtest", {}).get("enabled", False)
+
+        # On n'analyse la bougie courante que si le marché est ouvert (sauf en backtest)
+        if not backtest_mode and not self.is_market_open():
             print(f"⚠️ Marché fermé, analyse de la bougie courante ignorée pour {symbol}")
             return None
-        
+
         # Détection du mouvement sur la dernière bougie (seuil dynamique)
         is_significant, change_pct, direction = self.detect_significant_move(df)
         if not is_significant:
