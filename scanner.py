@@ -3,15 +3,27 @@
 Stock Scanner - Surveillance continue sans GUI
 Détecte les catalyseurs et affiche les alertes en temps réel
 Version CLI du système de détection de catalyseurs
+
+REFACTORED VERSION with:
+- Thread safety
+- Rate limiting
+- Parallel scanning
+- Better error handling
+- Input validation
+- Performance optimizations
+- Metrics tracking
 """
 
 import logging
 import sys
 import time
 import json
+import os
+import re
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
-from threading import Thread, Event
+from threading import Thread, Event, Lock
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import signal
 from zoneinfo import ZoneInfo
 
@@ -24,8 +36,33 @@ from data_providers import MultiSourceDataProvider
 from catalyst_analyzer import CatalystAnalyzer, load_settings
 from tabs import get_latest_data_with_cached_levels
 
-# Timezone
+# ----------------------
+# Constants
+# ----------------------
 EST = ZoneInfo("America/New_York")
+
+# Default settings
+DEFAULT_MIN_MOVE_PERCENT = 1.0
+DEFAULT_VOLUME_SPIKE_THRESHOLD = 1.5
+DEFAULT_MAX_WORKERS = 5
+DEFAULT_RATE_LIMIT_CALLS = 50
+DEFAULT_RATE_LIMIT_PERIOD = 60.0  # seconds
+DEFAULT_SYMBOL_DELAY = 0.5  # seconds between symbols
+
+# Validation patterns
+SYMBOL_PATTERN = re.compile(r'^[A-Z]{1,5}$')
+VALID_PROVIDERS = {'auto', 'polygon', 'ibkr', 'yahoo'}
+
+# Market hours
+MARKET_OPEN_HOUR = 9
+MARKET_OPEN_MINUTE = 30
+MARKET_CLOSE_HOUR = 16
+MARKET_CLOSE_MINUTE = 0
+
+# Alert cooldowns
+TECHNICAL_ALERT_COOLDOWN = timedelta(minutes=30)
+CATALYST_ALERT_COOLDOWN = timedelta(hours=2)
+ALERT_CLEANUP_INTERVAL = timedelta(hours=24)
 
 # ----------------------
 # Logging
@@ -37,71 +74,254 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ----------------------
+# Rate Limiter
+# ----------------------
+class RateLimiter:
+    """Rate limiter to prevent API throttling"""
+
+    def __init__(self, max_calls: int = DEFAULT_RATE_LIMIT_CALLS,
+                 period: float = DEFAULT_RATE_LIMIT_PERIOD):
+        """
+        Args:
+            max_calls: Maximum number of calls allowed in the period
+            period: Time period in seconds
+        """
+        self.max_calls = max_calls
+        self.period = period
+        self.calls: List[float] = []
+        self.lock = Lock()
+
+    def wait_if_needed(self) -> None:
+        """Wait if rate limit would be exceeded"""
+        with self.lock:
+            now = time.time()
+
+            # Remove old calls outside the window
+            self.calls = [t for t in self.calls if now - t < self.period]
+
+            # If at limit, wait until oldest call expires
+            if len(self.calls) >= self.max_calls:
+                sleep_time = self.period - (now - self.calls[0]) + 0.1
+                if sleep_time > 0:
+                    logger.debug(f"Rate limit reached, sleeping {sleep_time:.1f}s")
+                    time.sleep(sleep_time)
+                    now = time.time()
+                    self.calls = [t for t in self.calls if now - t < self.period]
+
+            # Record this call
+            self.calls.append(now)
+
+# ----------------------
+# Input Validation
+# ----------------------
+def validate_symbol(symbol: str) -> bool:
+    """Validate stock symbol format"""
+    return bool(SYMBOL_PATTERN.match(symbol))
+
+def validate_provider(provider: str) -> bool:
+    """Validate data provider name"""
+    return provider.lower() in VALID_PROVIDERS
+
+def validate_config_path(path: str) -> str:
+    """
+    Validate and resolve config file path
+
+    Args:
+        path: Path to config file
+
+    Returns:
+        Absolute path to config file
+
+    Raises:
+        ValueError: If path is invalid
+    """
+    abs_path = os.path.abspath(path)
+
+    if not os.path.isfile(abs_path):
+        raise ValueError(f"Config file not found: {abs_path}")
+
+    if not abs_path.endswith('.txt'):
+        raise ValueError("Config file must be a .txt file")
+
+    return abs_path
+
+# ----------------------
 # Support/Resistance Detection for Scanner
 # ----------------------
-def detect_scanner_breakouts(df: pd.DataFrame, support_levels: List[float], resistance_levels: List[float], settings: Dict = None) -> Optional[Dict]:
-    """Detect support/resistance breakouts on latest candle - VERSION SCANNER"""
-    if len(df) < 5:
+def detect_scanner_breakouts(
+    df: pd.DataFrame,
+    support_levels: List[float],
+    resistance_levels: List[float],
+    settings: Dict = None
+) -> Optional[Dict]:
+    """
+    Detect support/resistance breakouts on latest candle - VERSION SCANNER
+
+    Args:
+        df: DataFrame with OHLCV data (minimum 2 rows)
+        support_levels: List of support price levels
+        resistance_levels: List of resistance price levels
+        settings: Optional settings dict with breakout configuration
+
+    Returns:
+        Dict with breakout info if detected, None otherwise
+    """
+    if len(df) < 2:
         return None
-        
+
     # Current and previous candle
     current = df.iloc[-1]
     previous = df.iloc[-2]
-    
+
     current_high = current['High']
     current_low = current['Low']
     current_close = current['Close']
     prev_close = previous['Close']
-    
-    # Calcul du % de mouvement
+
+    # Guard against invalid prices
+    if prev_close <= 0:
+        logger.warning("Previous close price is invalid (<=0)")
+        return None
+
+    # Calculate % movement
     change_pct = ((current_close - prev_close) / prev_close) * 100
-    
-    # Paramètres configurables
+
+    # Configurable parameters
     if settings:
-        min_move = settings.get("breakout", {}).get("min_move_percent", 1.0)
-        vol_threshold = settings.get("breakout", {}).get("volume_spike_threshold", 1.5)
+        min_move = settings.get("breakout", {}).get("min_move_percent", DEFAULT_MIN_MOVE_PERCENT)
+        vol_threshold = settings.get("breakout", {}).get("volume_spike_threshold", DEFAULT_VOLUME_SPIKE_THRESHOLD)
     else:
-        min_move = 1.0
-        vol_threshold = 1.5
-    
-    # Volume spike check (si disponible)
+        min_move = DEFAULT_MIN_MOVE_PERCENT
+        vol_threshold = DEFAULT_VOLUME_SPIKE_THRESHOLD
+
+    # Volume spike check (if available)
     volume_spike = False
     if 'Volume' in df.columns and len(df) >= 5:
         current_vol = current['Volume']
         avg_vol = df['Volume'].iloc[-5:].mean()
         volume_spike = current_vol / avg_vol >= vol_threshold if avg_vol > 0 else False
-    
+
     # Check resistance breakouts
     for resistance in resistance_levels:
-        if (prev_close < resistance and current_high > resistance and 
-            current_close > resistance and  # Close au-dessus aussi
-            change_pct >= min_move and  # Seuil configurable
-            volume_spike):  # Volume élevé
+        if (prev_close < resistance and
+            current_high > resistance and
+            current_close > resistance and  # Close above as well
+            change_pct >= min_move and  # Configurable threshold
+            volume_spike):  # High volume
             return {
                 'type': 'resistance_breakout',
                 'level': float(resistance),
                 'direction': 'UP',
                 'description': f'Breakout résistance à ${resistance:.2f}'
             }
-    
-    # Check support breakdowns  
+
+    # Check support breakdowns
     for support in support_levels:
-        if (prev_close > support and current_low < support and
-            current_close < support and  # Close en dessous aussi
-            change_pct <= -min_move and  # Seuil configurable
-            volume_spike):  # Volume élevé
+        if (prev_close > support and
+            current_low < support and
+            current_close < support and  # Close below as well
+            change_pct <= -min_move and  # Configurable threshold
+            volume_spike):  # High volume
             return {
                 'type': 'support_breakdown',
                 'level': float(support),
-                'direction': 'DOWN', 
+                'direction': 'DOWN',
                 'description': f'Breakdown support à ${support:.2f}'
             }
-            
+
     return None
 
+# ----------------------
+# Metrics Tracker
+# ----------------------
+class MetricsTracker:
+    """Track scanner performance metrics"""
+
+    def __init__(self):
+        self.lock = Lock()
+        self.reset()
+
+    def reset(self):
+        """Reset all metrics"""
+        with self.lock:
+            self.total_scans = 0
+            self.total_symbols_scanned = 0
+            self.total_alerts = 0
+            self.total_technical_alerts = 0
+            self.total_catalyst_alerts = 0
+            self.total_errors = 0
+            self.total_api_calls = 0
+            self.cache_hits = 0
+            self.cache_misses = 0
+            self.scan_times: List[float] = []
+            self.start_time = time.time()
+
+    def record_scan(self, duration: float, symbols_count: int):
+        """Record a scan completion"""
+        with self.lock:
+            self.total_scans += 1
+            self.total_symbols_scanned += symbols_count
+            self.scan_times.append(duration)
+            # Keep only last 100 scan times
+            if len(self.scan_times) > 100:
+                self.scan_times = self.scan_times[-100:]
+
+    def record_alert(self, is_technical: bool):
+        """Record an alert"""
+        with self.lock:
+            self.total_alerts += 1
+            if is_technical:
+                self.total_technical_alerts += 1
+            else:
+                self.total_catalyst_alerts += 1
+
+    def record_error(self):
+        """Record an error"""
+        with self.lock:
+            self.total_errors += 1
+
+    def record_api_call(self):
+        """Record an API call"""
+        with self.lock:
+            self.total_api_calls += 1
+
+    def record_cache_hit(self, hit: bool):
+        """Record cache hit or miss"""
+        with self.lock:
+            if hit:
+                self.cache_hits += 1
+            else:
+                self.cache_misses += 1
+
+    def get_stats(self) -> Dict:
+        """Get current statistics"""
+        with self.lock:
+            uptime = time.time() - self.start_time
+            avg_scan_time = sum(self.scan_times) / len(self.scan_times) if self.scan_times else 0
+            cache_total = self.cache_hits + self.cache_misses
+            cache_hit_rate = (self.cache_hits / cache_total * 100) if cache_total > 0 else 0
+
+            return {
+                'uptime_seconds': uptime,
+                'total_scans': self.total_scans,
+                'total_symbols_scanned': self.total_symbols_scanned,
+                'total_alerts': self.total_alerts,
+                'technical_alerts': self.total_technical_alerts,
+                'catalyst_alerts': self.total_catalyst_alerts,
+                'total_errors': self.total_errors,
+                'total_api_calls': self.total_api_calls,
+                'avg_scan_time': avg_scan_time,
+                'cache_hit_rate': cache_hit_rate,
+            }
+
+# ----------------------
+# Stock Scanner Class
+# ----------------------
 class StockScanner:
+    """Main scanner class with parallel scanning and rate limiting"""
+
     def __init__(self, config_file: str = 'config.txt'):
-        self.config_file = config_file
+        self.config_file = validate_config_path(config_file)
         self.symbols_config = {}
         self.sector_map = {}
         self.data_provider = None
@@ -109,201 +329,327 @@ class StockScanner:
         self.settings = {}
         self.is_running = False
         self.stop_event = Event()
-        self.alerts_count = 0
-        
-        # Historique des alertes pour éviter les doublons
-        self.recent_alerts = {}
-        
+
+        # Thread safety
+        self.alerts_lock = Lock()
+        self.recent_alerts: Dict[str, datetime] = {}
+
+        # Rate limiting
+        self.rate_limiter = None
+
+        # Metrics
+        self.metrics = MetricsTracker()
+
     def is_market_open(self, dt: Optional[datetime] = None) -> bool:
-        """Vérifie si le marché US est ouvert"""
+        """
+        Check if US market is open
+
+        Args:
+            dt: Datetime to check (defaults to now)
+
+        Returns:
+            True if market is open
+        """
         dt = dt or datetime.now(EST)
-        
+
         # Weekend
-        if dt.weekday() > 4:  # Lundi=0, Vendredi=4
+        if dt.weekday() > 4:  # Monday=0, Friday=4
             return False
-        
-        # Heures d'ouverture : 9h30-16h EST
-        market_open = dt.replace(hour=9, minute=30, second=0, microsecond=0)
-        market_close = dt.replace(hour=16, minute=0, second=0, microsecond=0)
-        
+
+        # Market hours: 9:30-16:00 EST
+        market_open = dt.replace(
+            hour=MARKET_OPEN_HOUR,
+            minute=MARKET_OPEN_MINUTE,
+            second=0,
+            microsecond=0
+        )
+        market_close = dt.replace(
+            hour=MARKET_CLOSE_HOUR,
+            minute=MARKET_CLOSE_MINUTE,
+            second=0,
+            microsecond=0
+        )
+
         return market_open <= dt <= market_close
-        
-    def load_configuration(self):
-        """Charge la configuration des symboles et secteurs"""
-        # Charger les settings
-        self.settings = load_settings('settings.json')
-        
-        # Contrôle des printouts
-        self.alerts_only = self.settings.get("logging", {}).get("alerts_only", False)
-        
-        if not self.alerts_only:
-            logger.info(f"📋 Settings: refresh={self.settings['interface']['refresh_seconds']}s")
-        
-        # Charger les symboles
-        self.symbols_config = self._parse_config(self.config_file)
-        if not self.symbols_config:
-            logger.error('❌ Aucun symbole dans la configuration!')
+
+    def load_configuration(self) -> bool:
+        """
+        Load configuration from files
+
+        Returns:
+            True if successful
+        """
+        try:
+            # Load settings
+            self.settings = load_settings('settings.json')
+
+            # Control printouts
+            self.alerts_only = self.settings.get("logging", {}).get("alerts_only", False)
+
+            if not self.alerts_only:
+                logger.info(f"📋 Settings: refresh={self.settings['interface']['refresh_seconds']}s")
+
+            # Initialize rate limiter from settings
+            rate_limit_config = self.settings.get("rate_limiting", {})
+            max_calls = rate_limit_config.get("max_calls_per_minute", DEFAULT_RATE_LIMIT_CALLS)
+            period = rate_limit_config.get("period_seconds", DEFAULT_RATE_LIMIT_PERIOD)
+            self.rate_limiter = RateLimiter(max_calls=max_calls, period=period)
+
+            # Load symbols
+            self.symbols_config = self._parse_config(self.config_file)
+            if not self.symbols_config:
+                logger.error('❌ No symbols in configuration!')
+                return False
+
+            # Load sector mapping
+            self.sector_map = self._load_sector_mapping('sector_mapping.txt')
+
+            if not self.alerts_only:
+                logger.info(f"📊 {len(self.symbols_config)} symbols to monitor: {list(self.symbols_config.keys())}")
+
+            return True
+
+        except Exception as e:
+            logger.exception(f'❌ Error loading configuration: {e}')
             return False
-            
-        # Charger le mapping secteurs
-        self.sector_map = self._load_sector_mapping('sector_mapping.txt')
-        
-        if not self.alerts_only:
-            logger.info(f"📊 {len(self.symbols_config)} symboles à surveiller: {list(self.symbols_config.keys())}")
-        return True
-        
+
     def _parse_config(self, config_file: str) -> Dict[str, dict]:
-        """Parse le fichier de configuration"""
+        """
+        Parse configuration file
+
+        Args:
+            config_file: Path to config file
+
+        Returns:
+            Dict mapping symbol to config
+        """
         symbols_config = {}
+
         try:
             with open(config_file, 'r', encoding='utf-8') as f:
-                for line in f:
+                for line_num, line in enumerate(f, 1):
                     line = line.strip()
                     if not line or line.startswith('#'):
                         continue
+
                     parts = line.split()
                     if len(parts) >= 1:
                         symbol = parts[0].upper()
                         provider = parts[1].lower() if len(parts) >= 2 else 'auto'
+
+                        # Validate symbol
+                        if not validate_symbol(symbol):
+                            logger.warning(f"Line {line_num}: Invalid symbol '{symbol}' (must be 1-5 uppercase letters)")
+                            continue
+
+                        # Validate provider
+                        if not validate_provider(provider):
+                            logger.warning(f"Line {line_num}: Invalid provider '{provider}' for {symbol}, using 'auto'")
+                            provider = 'auto'
+
                         symbols_config[symbol] = {'provider': provider}
+
+        except FileNotFoundError:
+            logger.error(f'❌ Config file not found: {config_file}')
         except Exception as e:
-            logger.exception(f'❌ Erreur lecture config: {e}')
+            logger.exception(f'❌ Error reading config: {e}')
+
         return symbols_config
-        
+
     def _load_sector_mapping(self, file: str) -> Dict[str, str]:
-        """Charge le mapping symbole -> secteur"""
+        """
+        Load sector mapping file
+
+        Args:
+            file: Path to sector mapping file
+
+        Returns:
+            Dict mapping symbol to sector
+        """
         sector_map = {}
+
         try:
             with open(file, 'r', encoding='utf-8') as f:
                 for line in f:
                     line = line.strip()
                     if not line or line.startswith('#'):
                         continue
+
                     parts = line.split()
                     if len(parts) >= 2:
-                        sector_map[parts[0].upper()] = parts[1].lower()
-        except Exception:
-            logger.warning('⚠️  Erreur lecture sector mapping')
+                        symbol = parts[0].upper()
+                        sector = parts[1].lower()
+
+                        if validate_symbol(symbol):
+                            sector_map[symbol] = sector
+
+        except FileNotFoundError:
+            logger.warning(f'⚠️  Sector mapping file not found: {file}')
+        except Exception as e:
+            logger.error(f'⚠️  Error reading sector mapping: {e}', exc_info=True)
+
         return sector_map
-        
-    def initialize_services(self):
-        """Initialise les services de données et d'analyse"""
+
+    def initialize_services(self) -> bool:
+        """
+        Initialize data providers and analyzers
+
+        Returns:
+            True if successful
+        """
         try:
-            # Passer debug=False sauf si mode debug activé
+            # Debug mode based on alerts_only setting
             debug_mode = not self.alerts_only
             self.data_provider = MultiSourceDataProvider(debug=debug_mode)
+
             if not self.alerts_only:
-                logger.info("✅ Data provider initialisé")
+                logger.info("✅ Data provider initialized")
+
         except Exception as e:
-            logger.exception('❌ ERREUR INITIALISATION DATA PROVIDER')
+            logger.exception('❌ ERROR INITIALIZING DATA PROVIDER')
             return False
-            
+
         try:
             self.catalyst_analyzer = CatalystAnalyzer(settings=self.settings)
+
             if not self.alerts_only:
-                logger.info("✅ Catalyst analyzer initialisé")
-            
-            # Désactiver les logs verbeux si alerts_only
+                logger.info("✅ Catalyst analyzer initialized")
+
+            # Reduce log verbosity if alerts_only
             if self.alerts_only:
                 logging.getLogger('tabs').setLevel(logging.WARNING)
                 logging.getLogger('catalyst_analyzer').setLevel(logging.WARNING)
+
         except Exception as e:
-            logger.exception('⚠️  Erreur initialisation Catalyst Analyzer')
+            logger.error('⚠️  Error initializing Catalyst Analyzer', exc_info=True)
             self.catalyst_analyzer = None
-            
+
         return True
-        
+
     def scan_symbol(self, symbol: str) -> Optional[Dict]:
-        """Scan un symbole et retourne une alerte si détectée (VERSION OPTIMISÉE)"""
+        """
+        Scan a single symbol and return alert if detected (OPTIMIZED VERSION)
+
+        Args:
+            symbol: Stock symbol to scan
+
+        Returns:
+            Alert dict if detected, None otherwise
+        """
         try:
-            # Vérifier si le marché est ouvert
+            # Check if market is open
             if not self.is_market_open():
-                return None  # Pas d'analyse si marché fermé
-                
-            sector = self.sector_map.get(symbol, 'unknown')
-            
-            # NOUVELLE API OPTIMISÉE : récupérer dernière bougie + niveaux S/R en cache
-            data_result = get_latest_data_with_cached_levels(symbol, self.data_provider, self.settings)
-            
-            if data_result is None:
-                logger.warning(f'⚠️  Impossible de récupérer les données pour {symbol}')
                 return None
-                
+
+            # Rate limiting
+            if self.rate_limiter:
+                self.rate_limiter.wait_if_needed()
+
+            sector = self.sector_map.get(symbol, 'unknown')
+
+            # OPTIMIZED API: Get latest candle + cached S/R levels
+            data_result = get_latest_data_with_cached_levels(symbol, self.data_provider, self.settings)
+
+            if data_result is None:
+                logger.warning(f'⚠️  Unable to fetch data for {symbol}')
+                self.metrics.record_error()
+                return None
+
+            self.metrics.record_api_call()
+            self.metrics.record_cache_hit(data_result['cache_hit'])
+
             latest_candle = data_result['latest_candle']
-            support_levels = data_result['support_levels'] 
+            support_levels = data_result['support_levels']
             resistance_levels = data_result['resistance_levels']
             provider_used = data_result['provider_used']
             cache_hit = data_result['cache_hit']
-            
+
             if cache_hit:
                 logger.debug(f"📦 {symbol}: Cache HIT S/R")
             else:
-                logger.debug(f"🔄 {symbol}: Recalcul S/R")
-            
-            # Créer un mini-DataFrame pour les analyses (2 bougies : précédente + actuelle)
-            # Pour l'instant on simule la bougie précédente
+                logger.debug(f"🔄 {symbol}: Recalculating S/R")
+
             current_price = float(latest_candle['Close'])
-            
-            # 1. Analyser les breakouts techniques avec niveaux en cache
+
+            # OPTIMIZATION: Fetch full data ONCE and reuse
+            df_full = None
+            previous_price = None
+
+            try:
+                df_full, _ = self.data_provider.fetch_data(
+                    symbol,
+                    days=self.settings["data"]["days_fetch"],
+                    period=self.settings["data"]["period_candles"]
+                )
+                self.metrics.record_api_call()
+
+                if df_full is not None and len(df_full) >= 2:
+                    previous_price = float(df_full['Close'].iloc[-2])
+                else:
+                    logger.warning(f"Insufficient data for {symbol}")
+                    return None
+
+            except Exception as e:
+                logger.error(f"Error fetching full data for {symbol}: {e}", exc_info=True)
+                self.metrics.record_error()
+                return None
+
+            # Validate previous_price
+            if previous_price is None or previous_price <= 0:
+                logger.warning(f"Invalid previous price for {symbol}: {previous_price}")
+                return None
+
+            # 1. Analyze technical breakouts with cached levels
             breakout_info = None
-            if len(support_levels) > 0 or len(resistance_levels) > 0:
-                # Pour détecter un breakout, on a besoin de comparer avec la bougie précédente
-                # Récupérons 2 bougies pour avoir prev + current
+            if (len(support_levels) > 0 or len(resistance_levels) > 0) and len(df_full) >= 2:
                 try:
-                    df_mini, _ = self.data_provider.fetch_data(symbol, days=2, period=2)
-                    if df_mini is not None and len(df_mini) >= 2:
-                        breakout_info = detect_scanner_breakouts(df_mini, support_levels, resistance_levels, self.settings)
-                except Exception as e:
-                    logger.debug(f"Erreur mini-fetch pour breakout {symbol}: {e}")
-            
-            # 2. Analyser avec catalyst analyzer (nécessite un DataFrame complet)
-            catalyst_info = None
-            if self.catalyst_analyzer:
-                try:
-                    # Le catalyst analyzer a besoin d'un historique pour calculate_average_move
-                    df_full, _ = self.data_provider.fetch_data(
-                        symbol,
-                        days=self.settings["data"]["days_fetch"], 
-                        period=self.settings["data"]["period_candles"]
+                    # Use last 2 candles from full dataframe
+                    df_mini = df_full.tail(2)
+                    breakout_info = detect_scanner_breakouts(
+                        df_mini,
+                        support_levels,
+                        resistance_levels,
+                        self.settings
                     )
-                    if df_full is not None and len(df_full) >= 2:
-                        catalyst_info = self.catalyst_analyzer.analyze_symbol(symbol, df_full, sector)
                 except Exception as e:
-                    logger.debug(f"Erreur catalyst pour {symbol}: {e}")
-            
-            # Priorité: Catalyst (IA) > Breakout technique
+                    logger.error(f"Error detecting breakout for {symbol}: {e}", exc_info=True)
+                    self.metrics.record_error()
+
+            # 2. Analyze with catalyst analyzer (needs full DataFrame)
+            catalyst_info = None
+            if self.catalyst_analyzer and df_full is not None and len(df_full) >= 2:
+                try:
+                    catalyst_info = self.catalyst_analyzer.analyze_symbol(symbol, df_full, sector)
+                except Exception as e:
+                    logger.error(f"Error analyzing catalyst for {symbol}: {e}", exc_info=True)
+                    self.metrics.record_error()
+
+            # Priority: Catalyst (AI) > Technical breakout
             alert_info = catalyst_info or breakout_info
-            
+
             if alert_info:
-                # Déterminer le type d'alerte
+                # Determine alert type
                 alert_type = alert_info.get('type', 'unknown')
                 is_technical = alert_type in ['resistance_breakout', 'support_breakdown']
-                
-                # Éviter les alertes en double
+
+                # Avoid duplicate alerts (thread-safe)
                 alert_key = f"{symbol}_{alert_type}"
                 now = datetime.now()
-                
-                # Vérifier si alerte récente (dernières 2 heures pour catalyst, 30 min pour technique)
-                cooldown = timedelta(minutes=30) if is_technical else timedelta(hours=2)
-                if alert_key in self.recent_alerts:
-                    time_diff = now - self.recent_alerts[alert_key]
-                    if time_diff < cooldown:
-                        return None  # Alerte trop récente
-                
-                # Enregistrer cette alerte
-                self.recent_alerts[alert_key] = now
-                
-                # Pour previous_price, utiliser les 2 dernières bougies si disponibles
-                try:
-                    df_price, _ = self.data_provider.fetch_data(symbol, days=2, period=2)
-                    if df_price is not None and len(df_price) >= 2:
-                        previous_price = float(df_price['Close'].iloc[-2])
-                    else:
-                        previous_price = current_price * 0.99  # Estimation
-                except:
-                    previous_price = current_price * 0.99  # Fallback
-                
-                # Créer l'alerte
+
+                # Check if recent alert (last 30min for technical, 2h for catalyst)
+                cooldown = TECHNICAL_ALERT_COOLDOWN if is_technical else CATALYST_ALERT_COOLDOWN
+
+                with self.alerts_lock:
+                    if alert_key in self.recent_alerts:
+                        time_diff = now - self.recent_alerts[alert_key]
+                        if time_diff < cooldown:
+                            logger.debug(f"Skipping duplicate alert for {alert_key}")
+                            return None  # Too recent
+
+                    # Record this alert
+                    self.recent_alerts[alert_key] = now
+
+                # Create alert
                 alert = {
                     'symbol': symbol,
                     'sector': sector,
@@ -317,29 +663,43 @@ class StockScanner:
                     'resistance_levels': resistance_levels[-3:] if len(resistance_levels) > 0 else [],
                     'cache_performance': 'HIT' if cache_hit else 'MISS'
                 }
-                
+
+                # Record metrics
+                self.metrics.record_alert(is_technical)
+
                 return alert
-                    
+
         except Exception as e:
-            logger.error(f'❌ Erreur scan {symbol}: {e}')
-            
+            logger.error(f'❌ Error scanning {symbol}: {e}', exc_info=True)
+            self.metrics.record_error()
+
         return None
-        
+
     def display_alert(self, alert: Dict):
-        """Affiche une alerte formatée"""
+        """
+        Display formatted alert
+
+        Args:
+            alert: Alert dictionary
+        """
         symbol = alert['symbol']
         catalyst = alert['catalyst']
         current_price = alert['current_price']
         previous_price = alert['previous_price']
         is_technical = alert.get('is_technical', False)
-        
-        change_pct = ((current_price - previous_price) / previous_price) * 100
+
+        # Safe division
+        if previous_price > 0:
+            change_pct = ((current_price - previous_price) / previous_price) * 100
+        else:
+            change_pct = 0.0
+
         change_direction = "📈" if change_pct > 0 else "📉"
-        
-        # Type d'alerte
+
+        # Alert type
         alert_icon = "🔧" if is_technical else "🚨"
         alert_title = "BREAKOUT TECHNIQUE" if is_technical else "CATALYST DÉTECTÉ"
-        
+
         print("\n" + "="*80)
         print(f"{alert_icon} {alert_title} - {datetime.now().strftime('%H:%M:%S')}")
         print("="*80)
@@ -347,16 +707,16 @@ class StockScanner:
         print(f"💰 Prix: ${current_price:.2f} ({change_direction} {change_pct:+.2f}%)")
         print(f"🔍 Type: {catalyst.get('type', 'N/A').upper().replace('_', ' ')}")
         print(f"📝 Description: {catalyst.get('description', 'N/A')}")
-        
+
         if is_technical:
-            # Affichage spécial pour les breakouts
+            # Special display for breakouts
             level = catalyst.get('level', 0)
             direction = catalyst.get('direction', 'N/A')
             print(f"📏 Niveau: ${level:.2f}")
             print(f"➡️  Direction: {direction}")
             print(f"⚡ Signal: TECHNIQUE")
-            
-            # Afficher les niveaux proches
+
+            # Display nearby levels
             if alert.get('support_levels'):
                 supports = [f"${s:.2f}" for s in alert['support_levels']]
                 print(f"🟢 Supports: {', '.join(supports)}")
@@ -364,141 +724,230 @@ class StockScanner:
                 resistances = [f"${r:.2f}" for r in alert['resistance_levels']]
                 print(f"🔴 Résistances: {', '.join(resistances)}")
         else:
-            # Affichage pour les catalysts IA
+            # Display for AI catalysts
             print(f"⭐ Fiabilité: {catalyst.get('reliability', 'N/A').upper()}")
             print(f"💼 Tradeable: {'✅ OUI' if catalyst.get('tradeable', False) else '❌ NON'}")
             print(f"🤖 Signal: INTELLIGENCE ARTIFICIELLE")
-            
+
         print(f"📡 Source: {alert['provider']}")
         print("="*80)
-        
-        # Log pour historique
+
+        # Log for history
         signal_type = "TECHNIQUE" if is_technical else "IA"
         logger.info(f"{alert_icon} ALERTE {signal_type}: {symbol} {change_pct:+.2f}% - {catalyst.get('type', 'N/A')}")
-        
-        self.alerts_count += 1
-        
-    def scan_all_symbols(self):
-        """Scan tous les symboles une fois"""
-        # Vérifier d'abord si le marché est ouvert
+
+    def scan_all_symbols(self) -> int:
+        """
+        Scan all symbols in parallel
+
+        Returns:
+            Number of alerts found
+        """
+        # Check market hours first
         if not self.is_market_open():
             current_time = datetime.now(EST).strftime('%H:%M:%S EST')
             if not self.alerts_only:
-                print(f"⚠️  Marché fermé ({current_time}) - En attente d'ouverture (9h30-16h EST)")
+                print(f"⚠️  Marché fermé ({current_time}) - En attente d'ouverture ({MARKET_OPEN_HOUR}:{MARKET_OPEN_MINUTE:02d}-{MARKET_CLOSE_HOUR}:{MARKET_CLOSE_MINUTE:02d} EST)")
             return 0
-            
+
         alerts_found = 0
-        
-        for symbol in self.symbols_config.keys():
-            if self.stop_event.is_set():
-                break
-                
-            logger.debug(f"🔍 Scan {symbol}...")
-            alert = self.scan_symbol(symbol)
-            
-            if alert:
-                self.display_alert(alert)
-                alerts_found += 1
-                
-            # Petite pause entre les symboles
-            time.sleep(1)
-            
+
+        # Get max workers from settings or use default
+        max_workers = self.settings.get("scanning", {}).get("max_workers", DEFAULT_MAX_WORKERS)
+
+        # Parallel scanning with ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all scan jobs
+            future_to_symbol = {
+                executor.submit(self.scan_symbol, symbol): symbol
+                for symbol in self.symbols_config.keys()
+            }
+
+            # Process results as they complete
+            for future in as_completed(future_to_symbol):
+                if self.stop_event.is_set():
+                    # Cancel remaining futures
+                    for f in future_to_symbol:
+                        f.cancel()
+                    break
+
+                symbol = future_to_symbol[future]
+
+                try:
+                    alert = future.result()
+
+                    if alert:
+                        self.display_alert(alert)
+                        alerts_found += 1
+
+                except Exception as e:
+                    logger.error(f"❌ Error processing {symbol}: {e}", exc_info=True)
+                    self.metrics.record_error()
+
         return alerts_found
-        
+
     def run_continuous_scan(self):
-        """Lance le scan en continu"""
-        logger.info("🚀 Démarrage du scanner continu...")
-        logger.info(f"⏱️  Intervalle: {self.settings['interface']['refresh_seconds']} secondes")
-        logger.info("📊 Appuyez sur Ctrl+C pour arrêter")
-        
+        """Run continuous scanning loop"""
+        logger.info("🚀 Starting continuous scanner...")
+        logger.info(f"⏱️  Interval: {self.settings['interface']['refresh_seconds']} seconds")
+        logger.info(f"🔧 Max workers: {self.settings.get('scanning', {}).get('max_workers', DEFAULT_MAX_WORKERS)}")
+        logger.info("📊 Press Ctrl+C to stop")
+
         self.is_running = True
         scan_count = 0
-        
+        last_cleanup_time = time.time()
+        cleanup_interval_seconds = ALERT_CLEANUP_INTERVAL.total_seconds()
+
         while self.is_running and not self.stop_event.is_set():
             scan_count += 1
             start_time = time.time()
-            
+
             if not self.alerts_only:
                 print(f"\n🔄 Scan #{scan_count} - {datetime.now().strftime('%H:%M:%S')}")
                 print("-" * 50)
-            
+
             alerts_found = self.scan_all_symbols()
-            
+
             scan_duration = time.time() - start_time
-            
+
+            # Record metrics
+            self.metrics.record_scan(scan_duration, len(self.symbols_config))
+
             if not self.alerts_only:
                 if alerts_found == 0:
-                    print(f"✅ Scan terminé - Aucune alerte ({scan_duration:.1f}s)")
+                    print(f"✅ Scan completed - No alerts ({scan_duration:.1f}s)")
                 else:
-                    print(f"🚨 Scan terminé - {alerts_found} alerte(s) détectée(s) ({scan_duration:.1f}s)")
-                    
-                print(f"📈 Total alertes depuis le début: {self.alerts_count}")
-            
-            # Attendre avant le prochain scan
-            if not self.stop_event.wait(self.settings['interface']['refresh_seconds']):
-                continue
-            else:
-                break
-                
-        logger.info("🛑 Scanner arrêté")
-        
+                    print(f"🚨 Scan completed - {alerts_found} alert(s) detected ({scan_duration:.1f}s)")
+
+                # Display metrics periodically
+                if scan_count % 10 == 0:
+                    self._display_metrics()
+
+            # Periodic cleanup of old alerts
+            current_time = time.time()
+            if current_time - last_cleanup_time > cleanup_interval_seconds:
+                self.cleanup_old_alerts()
+                last_cleanup_time = current_time
+
+            # Wait before next scan (interruptible)
+            if self.stop_event.wait(self.settings['interface']['refresh_seconds']):
+                break  # Stop requested
+
+        logger.info("🛑 Scanner stopped")
+
+    def _display_metrics(self):
+        """Display current metrics"""
+        stats = self.metrics.get_stats()
+
+        print("\n" + "="*80)
+        print("📊 METRICS")
+        print("="*80)
+        print(f"⏱️  Uptime: {stats['uptime_seconds']/3600:.1f}h")
+        print(f"🔄 Total scans: {stats['total_scans']}")
+        print(f"📈 Total symbols scanned: {stats['total_symbols_scanned']}")
+        print(f"🚨 Total alerts: {stats['total_alerts']} (Technical: {stats['technical_alerts']}, Catalyst: {stats['catalyst_alerts']})")
+        print(f"❌ Total errors: {stats['total_errors']}")
+        print(f"📡 Total API calls: {stats['total_api_calls']}")
+        print(f"⚡ Avg scan time: {stats['avg_scan_time']:.1f}s")
+        print(f"📦 Cache hit rate: {stats['cache_hit_rate']:.1f}%")
+        print("="*80)
+
     def stop(self):
-        """Arrête le scanner"""
+        """Stop the scanner"""
         self.is_running = False
         self.stop_event.set()
-        
+
     def cleanup_old_alerts(self):
-        """Nettoie les anciennes alertes (plus de 24h)"""
-        cutoff_time = datetime.now() - timedelta(hours=24)
-        keys_to_remove = []
-        
-        for key, timestamp in self.recent_alerts.items():
-            if timestamp < cutoff_time:
-                keys_to_remove.append(key)
-                
-        for key in keys_to_remove:
-            del self.recent_alerts[key]
+        """Clean up old alerts (older than 24h)"""
+        cutoff_time = datetime.now() - ALERT_CLEANUP_INTERVAL
 
-def signal_handler(signum, frame, scanner):
-    """Gestionnaire de signal pour arrêt propre"""
-    print("\n🛑 Arrêt demandé...")
-    scanner.stop()
+        with self.alerts_lock:
+            keys_to_remove = [
+                key for key, timestamp in self.recent_alerts.items()
+                if timestamp < cutoff_time
+            ]
 
-def main():
-    print("📡 STOCK SCANNER - Surveillance Continue")
-    print("=====================================")
-    
-    config_file = sys.argv[1] if len(sys.argv) > 1 else 'config.txt'
-    
-    # Créer le scanner
-    scanner = StockScanner(config_file)
-    
-    # Gestionnaire d'arrêt propre
-    signal.signal(signal.SIGINT, lambda s, f: signal_handler(s, f, scanner))
-    signal.signal(signal.SIGTERM, lambda s, f: signal_handler(s, f, scanner))
-    
-    # Charger la configuration
-    if not scanner.load_configuration():
-        sys.exit(1)
-        
-    # Initialiser les services
-    if not scanner.initialize_services():
-        sys.exit(1)
-        
-    try:
-        # Nettoyer les anciennes alertes au démarrage
-        scanner.cleanup_old_alerts()
-        
-        # Lancer le scan continu
-        scanner.run_continuous_scan()
-        
-    except KeyboardInterrupt:
-        print("\n⌨️  Interruption détectée")
-    except Exception as e:
-        logger.exception(f"❌ Erreur fatale: {e}")
-    finally:
+            for key in keys_to_remove:
+                del self.recent_alerts[key]
+
+            if keys_to_remove and not self.alerts_only:
+                logger.info(f"🧹 Cleaned up {len(keys_to_remove)} old alerts")
+
+# ----------------------
+# Signal Handling
+# ----------------------
+def make_signal_handler(scanner: StockScanner):
+    """
+    Create signal handler with scanner context
+
+    Args:
+        scanner: StockScanner instance
+
+    Returns:
+        Signal handler function
+    """
+    def handler(signum, frame):
+        """Handle shutdown signals"""
+        print("\n🛑 Stop requested...")
         scanner.stop()
-        print("✅ Scanner fermé proprement")
+
+    return handler
+
+# ----------------------
+# Main Entry Point
+# ----------------------
+def main():
+    """Main entry point"""
+    print("📡 STOCK SCANNER - Surveillance Continue")
+    print("=" * 80)
+    print("REFACTORED VERSION with:")
+    print("  ✅ Thread safety")
+    print("  ✅ Rate limiting")
+    print("  ✅ Parallel scanning")
+    print("  ✅ Better error handling")
+    print("  ✅ Input validation")
+    print("  ✅ Performance optimizations")
+    print("  ✅ Metrics tracking")
+    print("=" * 80)
+
+    # Get config file from args or use default
+    config_file = sys.argv[1] if len(sys.argv) > 1 else 'config.txt'
+
+    try:
+        # Create scanner
+        scanner = StockScanner(config_file)
+
+        # Setup signal handlers
+        handler = make_signal_handler(scanner)
+        signal.signal(signal.SIGINT, handler)
+        signal.signal(signal.SIGTERM, handler)
+
+        # Load configuration
+        if not scanner.load_configuration():
+            sys.exit(1)
+
+        # Initialize services
+        if not scanner.initialize_services():
+            sys.exit(1)
+
+        # Clean up old alerts at startup
+        scanner.cleanup_old_alerts()
+
+        # Run continuous scan
+        scanner.run_continuous_scan()
+
+    except ValueError as e:
+        logger.error(f"❌ Configuration error: {e}")
+        sys.exit(1)
+    except KeyboardInterrupt:
+        print("\n⌨️  Keyboard interrupt detected")
+    except Exception as e:
+        logger.exception(f"❌ Fatal error: {e}")
+        sys.exit(1)
+    finally:
+        if 'scanner' in locals():
+            scanner.stop()
+        print("✅ Scanner shut down cleanly")
 
 if __name__ == '__main__':
     main()
