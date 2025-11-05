@@ -14,18 +14,12 @@ from data_providers import MultiSourceDataProvider
 from catalyst_analyzer import CatalystAnalyzer, load_settings
 from tabs import SupportResistance
 
-# Setup logging - SEULEMENT les alertes
+# Setup logging
 logging.basicConfig(
-    level=logging.ERROR,  # Seulement les erreurs critiques
-    format='%(message)s'
+    level=logging.INFO,
+    format='%(asctime)s %(levelname)s [%(name)s] %(message)s'
 )
 logger = logging.getLogger(__name__)
-
-# Désactiver TOUS les logs sauf erreurs critiques
-logging.getLogger('catalyst_analyzer').setLevel(logging.ERROR)
-logging.getLogger('scanner').setLevel(logging.ERROR)
-logging.getLogger('tabs').setLevel(logging.ERROR)
-logging.getLogger('data_providers').setLevel(logging.ERROR)
 
 def backtest_symbol(symbol, sector, data_provider, catalyst_analyzer, settings, days_back=30):
     """
@@ -160,6 +154,14 @@ def main():
     # 2. Initialiser services
     data_provider = MultiSourceDataProvider()
     settings = load_settings('settings.json')
+
+    # Appliquer alerts_only mode (comme scanner.py ligne 519-521)
+    alerts_only = settings.get("logging", {}).get("alerts_only", False)
+    if alerts_only:
+        logging.getLogger('tabs').setLevel(logging.WARNING)
+        logging.getLogger('catalyst_analyzer').setLevel(logging.WARNING)
+        print("🔇 Mode alerts_only activé")
+
     catalyst_analyzer = CatalystAnalyzer(settings=settings)
 
     # IMPORTANT: Bypasser la vérification du marché pour le backtest
