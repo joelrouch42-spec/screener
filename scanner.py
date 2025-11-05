@@ -205,7 +205,7 @@ def detect_scanner_breakouts(
         volume_spike = volume_ratio >= vol_threshold
 
     # Debug log
-    logger.debug(f"Breakout check: change={change_pct:.2f}%, vol_ratio={volume_ratio:.2f}x, spike={volume_spike}, S={len(support_levels)}, R={len(resistance_levels)}")
+    logger.info(f"Breakout check: change={change_pct:.2f}%, vol_ratio={volume_ratio:.2f}x, spike={volume_spike}, S={len(support_levels)}, R={len(resistance_levels)}")
 
     # Check resistance breakouts
     for resistance in resistance_levels:
@@ -624,7 +624,7 @@ class StockScanner:
                 try:
                     # Use last 6 candles (need 5 for volume average + current)
                     df_mini = df_full.tail(6)
-                    logger.debug(f"[{symbol}] df_full={len(df_full)} rows, df_mini={len(df_mini)} rows, S={len(support_levels)}, R={len(resistance_levels)}")
+                    logger.info(f"[{symbol}] df_full={len(df_full)} rows, df_mini={len(df_mini)} rows, S={len(support_levels)}, R={len(resistance_levels)}")
                     breakout_info = detect_scanner_breakouts(
                         df_mini,
                         support_levels,
