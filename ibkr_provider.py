@@ -105,7 +105,14 @@ class IBKRDataProvider(EWrapper, EClient):
             self.run()
         except Exception as e:
             self.error_occurred = True
-            self.error_message = f"Connection failed: {e}"
+            # Provide more helpful error message
+            if "str, bytes or bytearray expected" in str(e) or "NoneType" in str(e):
+                self.error_message = (
+                    f"IBKR Connection failed: IB Gateway/TWS n'est pas en cours d'exécution sur {self.host}:{self.port}. "
+                    f"Lancez IB Gateway (port 4002 pour paper trading) ou TWS (port 7497) et réessayez."
+                )
+            else:
+                self.error_message = f"IBKR Connection failed: {e}"
             self.connected_event.set()
 
     def fetch_data(self, symbol, days=80, period=60, end_date=None):
