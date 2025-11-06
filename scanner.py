@@ -687,7 +687,7 @@ class StockScanner:
                 if self.settings.get("backtest", {}).get("enabled", False):
                     now = df_full.index[-1].to_pydatetime()
                     if now.tzinfo is None:
-                        now = EST.localize(now)
+                        now = now.replace(tzinfo=EST)
                 else:
                     now = datetime.now(EST)
 

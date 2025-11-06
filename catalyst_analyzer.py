@@ -72,7 +72,7 @@ class CatalystAnalyzer:
         
         # Fix: S'assurer que dt a le bon timezone
         if dt.tzinfo is None:
-            dt = EST.localize(dt)
+            dt = dt.replace(tzinfo=EST)
         elif dt.tzinfo != EST:
             dt = dt.astimezone(EST)
             

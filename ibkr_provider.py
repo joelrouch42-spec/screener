@@ -207,7 +207,7 @@ class IBKRDataProvider(EWrapper, EClient):
                 else:
                     # Convert end_date to UTC
                     if end_date.tzinfo is None:
-                        utc_now = EST.localize(end_date).astimezone(pytz.utc)
+                        utc_now = end_date.replace(tzinfo=EST).astimezone(pytz.utc)
                     else:
                         utc_now = end_date.astimezone(pytz.utc)
 
