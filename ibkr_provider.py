@@ -2,7 +2,7 @@
 """
 IBKR Data Provider for Stock Scanner
 Uses Interactive Brokers API (ibapi) to fetch real-time and historical data
-Based on working test code
+With persistent connection to avoid disconnect issues
 """
 
 import time
@@ -21,17 +21,17 @@ EST = ZoneInfo("America/New_York")
 
 class IBKRDataProvider(EWrapper, EClient):
     """
-    Interactive Brokers data provider
+    Interactive Brokers data provider with persistent connection
     Fetches historical OHLCV data using IB API
     """
 
-    def __init__(self, host="127.0.0.1", port=4002, client_id=1):
+    def __init__(self, host="127.0.0.1", port=4001, client_id=1):
         """
         Initialize IBKR provider
 
         Args:
             host: IB Gateway/TWS host (default: 127.0.0.1)
-            port: IB Gateway/TWS port (4002 for paper, 7497 for live TWS)
+            port: IB Gateway/TWS port (4001 for live, 4002 for paper, 7497 for TWS)
             client_id: Unique client ID
         """
         EClient.__init__(self, self)
@@ -51,12 +51,21 @@ class IBKRDataProvider(EWrapper, EClient):
         self.data_event = threading.Event()
         self.connected_event = threading.Event()
 
-        # Connection thread
+        # Connection management
         self.api_thread = None
+        self.is_connected = False
+        self.connection_lock = threading.Lock()
+
+        # Request lock to serialize requests (avoid conflicts)
+        self.request_lock = threading.Lock()
+
+        # Request ID counter
+        self.next_req_id = 1
 
     def nextValidId(self, orderId):
         """Callback: Connection established"""
         super().nextValidId(orderId)
+        self.is_connected = True
         self.connected_event.set()
 
     def error(self, reqId, errorCode, errorString, advancedOrderRejectJson=""):
@@ -109,11 +118,38 @@ class IBKRDataProvider(EWrapper, EClient):
             if "str, bytes or bytearray expected" in str(e) or "NoneType" in str(e):
                 self.error_message = (
                     f"IBKR Connection failed: IB Gateway/TWS n'est pas en cours d'exécution sur {self.host}:{self.port}. "
-                    f"Lancez IB Gateway (port 4002 pour paper trading) ou TWS (port 7497) et réessayez."
+                    f"Lancez IB Gateway (port 4001 pour live, 4002 pour paper) ou TWS (port 7497) et réessayez."
                 )
             else:
                 self.error_message = f"IBKR Connection failed: {e}"
             self.connected_event.set()
+            self.is_connected = False
+
+    def ensure_connected(self):
+        """Ensure connection is established"""
+        with self.connection_lock:
+            if self.is_connected and self.isConnected():
+                return True
+
+            # Reset state
+            self.error_occurred = False
+            self.error_message = ""
+            self.connected_event.clear()
+            self.is_connected = False
+
+            # Start connection in separate thread if not already running
+            if self.api_thread is None or not self.api_thread.is_alive():
+                self.api_thread = threading.Thread(target=self.connect_and_run, daemon=True)
+                self.api_thread.start()
+
+            # Wait for connection
+            if not self.connected_event.wait(timeout=10):
+                raise ValueError(f"IBKR: Connection timeout to {self.host}:{self.port}")
+
+            if self.error_occurred:
+                raise ValueError(self.error_message)
+
+            return True
 
     def fetch_data(self, symbol, days=80, period=60, end_date=None):
         """
@@ -128,108 +164,105 @@ class IBKRDataProvider(EWrapper, EClient):
         Returns:
             DataFrame with OHLCV data
         """
-        # Reset state
-        self.bars = []
-        self.valid_contract = None
-        self.error_occurred = False
-        self.error_message = ""
-        self.contract_event.clear()
-        self.data_event.clear()
-        self.connected_event.clear()
+        # Use request lock to serialize requests (avoid conflicts)
+        with self.request_lock:
+            # Ensure we're connected
+            self.ensure_connected()
 
-        # Start connection in separate thread
-        self.api_thread = threading.Thread(target=self.connect_and_run, daemon=True)
-        self.api_thread.start()
+            # Reset request state
+            self.bars = []
+            self.valid_contract = None
+            self.error_occurred = False
+            self.error_message = ""
+            self.contract_event.clear()
+            self.data_event.clear()
 
-        # Wait for connection
-        if not self.connected_event.wait(timeout=10):
-            raise ValueError(f"IBKR: Connection timeout for {symbol}")
+            try:
+                # Step 1: Search for contract
+                search_contract = Contract()
+                search_contract.symbol = symbol
+                search_contract.secType = "STK"
+                search_contract.exchange = "SMART"
+                search_contract.currency = "USD"
 
-        if self.error_occurred:
-            raise ValueError(self.error_message)
+                contract_req_id = self.next_req_id
+                self.next_req_id += 1
 
-        try:
-            # Step 1: Search for contract
-            search_contract = Contract()
-            search_contract.symbol = symbol
-            search_contract.secType = "STK"
-            search_contract.exchange = "SMART"
-            search_contract.currency = "USD"
+                self.reqContractDetails(contract_req_id, search_contract)
 
-            self.reqContractDetails(100, search_contract)
+                # Wait for contract details
+                if not self.contract_event.wait(timeout=10):
+                    raise ValueError(f"IBKR: Contract search timeout for {symbol}")
 
-            # Wait for contract details
-            if not self.contract_event.wait(timeout=10):
-                raise ValueError(f"IBKR: Contract search timeout for {symbol}")
+                if self.error_occurred:
+                    raise ValueError(self.error_message)
 
-            if self.error_occurred:
-                raise ValueError(self.error_message)
+                if not self.valid_contract:
+                    raise ValueError(f"IBKR: No contract found for {symbol}")
 
-            if not self.valid_contract:
-                raise ValueError(f"IBKR: No contract found for {symbol}")
-
-            # Step 2: Request historical data
-            # Format end date for IBKR (YYYYMMDD HH:MM:SS UTC)
-            if end_date is None:
-                utc_now = datetime.now(pytz.utc)
-            else:
-                # Convert end_date to UTC
-                if end_date.tzinfo is None:
-                    utc_now = EST.localize(end_date).astimezone(pytz.utc)
+                # Step 2: Request historical data
+                # Format end date for IBKR (YYYYMMDD HH:MM:SS UTC)
+                if end_date is None:
+                    utc_now = datetime.now(pytz.utc)
                 else:
-                    utc_now = end_date.astimezone(pytz.utc)
+                    # Convert end_date to UTC
+                    if end_date.tzinfo is None:
+                        utc_now = EST.localize(end_date).astimezone(pytz.utc)
+                    else:
+                        utc_now = end_date.astimezone(pytz.utc)
 
-            # IBKR format: YYYYMMDD HH:MM:SS UTC
-            end_datetime_str = utc_now.strftime("%Y%m%d %H:%M:%S") + " UTC"
+                # IBKR format: YYYYMMDD HH:MM:SS UTC
+                end_datetime_str = utc_now.strftime("%Y%m%d %H:%M:%S") + " UTC"
 
-            # Calculate duration to get approximately 'period' bars
-            # Request more days to ensure we get enough data (account for weekends/holidays)
-            duration_days = max(period + 60, 180)
-            duration_str = f"{duration_days} D"
+                # Calculate duration to get approximately 'period' bars
+                # Request more days to ensure we get enough data (account for weekends/holidays)
+                duration_days = max(period + 60, 180)
+                duration_str = f"{duration_days} D"
 
-            self.reqHistoricalData(
-                2,  # reqId
-                self.valid_contract,
-                end_datetime_str,
-                duration_str,
-                "1 day",
-                "TRADES",
-                0,  # useRTH (0 = all data, 1 = regular trading hours only)
-                1,  # formatDate (1 = string format)
-                False,  # keepUpToDate
-                []  # chartOptions
-            )
+                data_req_id = self.next_req_id
+                self.next_req_id += 1
 
-            # Wait for historical data
-            if not self.data_event.wait(timeout=30):
-                raise ValueError(f"IBKR: Historical data timeout for {symbol}")
+                self.reqHistoricalData(
+                    data_req_id,
+                    self.valid_contract,
+                    end_datetime_str,
+                    duration_str,
+                    "1 day",
+                    "TRADES",
+                    0,  # useRTH (0 = all data, 1 = regular trading hours only)
+                    1,  # formatDate (1 = string format)
+                    False,  # keepUpToDate
+                    []  # chartOptions
+                )
 
-            if self.error_occurred:
-                raise ValueError(self.error_message)
+                # Wait for historical data
+                if not self.data_event.wait(timeout=30):
+                    raise ValueError(f"IBKR: Historical data timeout for {symbol}")
 
-            if not self.bars:
-                raise ValueError(f"IBKR: No historical data for {symbol}")
+                if self.error_occurred:
+                    raise ValueError(self.error_message)
 
-            # Convert bars to DataFrame
-            df = pd.DataFrame(self.bars)
+                if not self.bars:
+                    raise ValueError(f"IBKR: No historical data for {symbol}")
 
-            # Parse dates (IBKR returns string dates like "20231015")
-            df['Date'] = pd.to_datetime(df['Date'])
-            df.set_index('Date', inplace=True)
+                # Convert bars to DataFrame
+                df = pd.DataFrame(self.bars)
 
-            # Ensure columns are in correct order
-            df = df[['Open', 'High', 'Low', 'Close', 'Volume']].copy()
+                # Parse dates (IBKR returns string dates like "20231015")
+                df['Date'] = pd.to_datetime(df['Date'])
+                df.set_index('Date', inplace=True)
 
-            # Return last 'period' candles
-            df = df.tail(period)
+                # Ensure columns are in correct order
+                df = df[['Open', 'High', 'Low', 'Close', 'Volume']].copy()
 
-            return df
+                # Return last 'period' candles
+                df = df.tail(period)
 
-        finally:
-            # Always disconnect
-            self.disconnect()
-            if self.api_thread and self.api_thread.is_alive():
-                self.api_thread.join(timeout=2)
+                return df
+
+            except Exception as e:
+                # Don't disconnect on error, keep connection for next request
+                raise e
 
     def get_live_price(self, symbol):
         """Get current live price (not implemented yet)"""
@@ -238,24 +271,23 @@ class IBKRDataProvider(EWrapper, EClient):
     def is_available(self):
         """Check if IBKR is available"""
         try:
-            # Try to connect briefly
-            test_event = threading.Event()
+            # Check if already connected
+            if self.is_connected and self.isConnected():
+                return True
 
-            def test_connect():
-                try:
-                    self.connect(self.host, self.port, self.client_id + 100)
-                    test_event.set()
-                    time.sleep(1)
-                    self.disconnect()
-                except:
-                    pass
-
-            test_thread = threading.Thread(target=test_connect, daemon=True)
-            test_thread.start()
-
-            return test_event.wait(timeout=5)
+            # Try to connect
+            self.ensure_connected()
+            return self.is_connected
         except:
             return False
+
+    def disconnect_gracefully(self):
+        """Disconnect from IBKR gracefully"""
+        if self.isConnected():
+            self.disconnect()
+        if self.api_thread and self.api_thread.is_alive():
+            self.api_thread.join(timeout=2)
+        self.is_connected = False
 
 
 class IBKRProvider(IBKRDataProvider):
@@ -267,7 +299,7 @@ class IBKRProvider(IBKRDataProvider):
 if __name__ == "__main__":
     print("🧪 Testing IBKR Provider...")
 
-    provider = IBKRProvider()
+    provider = IBKRProvider(port=4001)
 
     try:
         print("\n📊 Fetching MSFT data...")
@@ -281,6 +313,15 @@ if __name__ == "__main__":
         else:
             print("❌ No data received")
 
+        # Test with another symbol to verify persistent connection
+        print("\n📊 Fetching AAPL data (using same connection)...")
+        df2 = provider.fetch_data("AAPL", days=150, period=120)
+        if df2 is not None and not df2.empty:
+            print(f"✅ Success! Received {len(df2)} candles")
+            print(f"Latest close: ${df2['Close'].iloc[-1]:.2f}")
+
     except Exception as e:
         print(f"❌ Error: {e}")
-        print("\n💡 Make sure IB Gateway or TWS is running on port 4002")
+        print("\n💡 Make sure IB Gateway or TWS is running on port 4001")
+    finally:
+        provider.disconnect_gracefully()
