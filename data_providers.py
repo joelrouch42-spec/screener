@@ -225,22 +225,28 @@ class YahooFinanceProvider(DataProvider):
 
 class MultiSourceDataProvider:
     """Orchestrates multiple data providers with fallback"""
-    
-    def __init__(self, polygon_key=None, alphavantage_key=None, use_ibkr=False, debug=False):
+
+    def __init__(self, polygon_key=None, alphavantage_key=None, use_ibkr=True, debug=False):
         self.debug = debug
         self.providers = []
-        
-        # IBKR désactivé temporairement (abonnement requis)
-        # if use_ibkr and IBKR_AVAILABLE:
-        #     self.providers.append(IBKRProvider(client_id=4))
-        
-        # Add other providers
+
+        # IBKR as default provider (if available)
+        if use_ibkr and IBKR_AVAILABLE:
+            try:
+                self.providers.append(IBKRProvider())
+                if self.debug:
+                    print("🔌 IBKRProvider ajouté comme provider primaire")
+            except Exception as e:
+                if self.debug:
+                    print(f"⚠️  Impossible de charger IBKR: {e}")
+
+        # Add other providers as fallbacks
         self.providers.extend([
             PolygonProvider(polygon_key),
             AlphaVantageProvider(alphavantage_key),
             YahooFinanceProvider()
         ])
-        
+
         # Test which providers are available
         self.available_providers = []
         for provider in self.providers:
