@@ -230,22 +230,16 @@ class MultiSourceDataProvider:
         self.debug = debug
         self.providers = []
 
-        # IBKR as default provider (if available)
-        if use_ibkr and IBKR_AVAILABLE:
-            try:
-                self.providers.append(IBKRProvider())
-                if self.debug:
-                    print("🔌 IBKRProvider ajouté comme provider primaire")
-            except Exception as e:
-                if self.debug:
-                    print(f"⚠️  Impossible de charger IBKR: {e}")
+        # IBKR only - no fallback
+        if not IBKR_AVAILABLE:
+            raise RuntimeError("IBKR provider is not available. Please install ibapi: pip install ibapi")
 
-        # Add other providers as fallbacks
-        self.providers.extend([
-            PolygonProvider(polygon_key),
-            AlphaVantageProvider(alphavantage_key),
-            YahooFinanceProvider()
-        ])
+        try:
+            self.providers.append(IBKRProvider())
+            if self.debug:
+                print("🔌 IBKRProvider configuré (mode exclusif)")
+        except Exception as e:
+            raise RuntimeError(f"Impossible d'initialiser IBKR: {e}")
 
         # Test which providers are available
         self.available_providers = []
