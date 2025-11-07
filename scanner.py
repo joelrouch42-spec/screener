@@ -932,13 +932,9 @@ class StockScanner:
         self.is_running = False
         self.stop_event.set()
 
-        # Disconnect data provider gracefully
-        if self.data_provider and hasattr(self.data_provider, 'cleanup'):
-            try:
-                self.data_provider.cleanup()
-                logger.info("🔌 Data provider disconnected gracefully")
-            except Exception as e:
-                logger.warning(f"⚠️  Error disconnecting data provider: {e}")
+        # Keep IBKR connection alive for reuse by other applications
+        # NOTE: Connection is intentionally NOT disconnected here
+        logger.info("🔌 Scanner stopped - IBKR connection kept alive for other applications")
 
     def cleanup_old_alerts(self):
         """Clean up old alerts (older than 24h)"""
