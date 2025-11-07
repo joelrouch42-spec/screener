@@ -899,9 +899,13 @@ class StockScanner:
                 self.cleanup_old_alerts()
                 last_cleanup_time = current_time
 
-            # BACKTEST MODE: Stop after one scan
+            # BACKTEST MODE: Stop scanning but keep connection alive
             if backtest_enabled:
-                logger.info("✅ Backtest scan completed - Exiting")
+                logger.info("✅ Backtest scan completed - Keeping IBKR connection alive")
+                logger.info("🔌 Press Ctrl+C to stop and disconnect")
+                # Keep running to maintain IBKR connection for other applications
+                while not self.stop_event.is_set():
+                    self.stop_event.wait(60)  # Wait indefinitely but check every minute
                 break
 
             # Wait before next scan (interruptible)
