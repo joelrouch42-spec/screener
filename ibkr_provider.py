@@ -279,8 +279,7 @@ class IBKRDataProvider(EWrapper, EClient):
             # Try to connect
             self.ensure_connected()
             return self.is_connected
-        except Exception as e:
-            print(f"⚠️  IBKR is_available() error: {e}")
+        except Exception:
             return False
 
     def disconnect_gracefully(self):

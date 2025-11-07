@@ -20,7 +20,6 @@ try:
     from ibkr_provider import IBKRProvider
     IBKR_AVAILABLE = True
 except ImportError:
-    print("⚠️  IBKR provider non disponible (ib_insync non installé)")
     IBKR_AVAILABLE = False
 
 
@@ -236,8 +235,6 @@ class MultiSourceDataProvider:
 
         try:
             self.providers.append(IBKRProvider(client_id=ibkr_client_id))
-            if self.debug:
-                print(f"🔌 IBKRProvider configuré (mode exclusif) - client_id={ibkr_client_id}")
         except Exception as e:
             raise RuntimeError(f"Impossible d'initialiser IBKR: {e}")
 
@@ -247,11 +244,8 @@ class MultiSourceDataProvider:
             try:
                 if provider.is_available():
                     self.available_providers.append(provider)
-                    print(f"✅ {provider.__class__.__name__} disponible")
-                else:
-                    print(f"❌ {provider.__class__.__name__} non disponible - IB Gateway en cours d'exécution sur port {provider._ib_port}?")
-            except Exception as e:
-                print(f"❌ Erreur lors du test de {provider.__class__.__name__}: {e}")
+            except Exception:
+                pass
 
         if not self.available_providers:
             raise RuntimeError(
@@ -266,18 +260,12 @@ class MultiSourceDataProvider:
 
         for provider in self.available_providers:
             try:
-                if self.debug:
-                    print(f"🔄 Tentative {provider.__class__.__name__}...")
                 df = provider.fetch_data(symbol, days, period, end_date=end_date)
-                if self.debug:
-                    print(f"✅ Données récupérées via {provider.__class__.__name__}")
                 return df, provider
             except Exception as e:
-                if self.debug:
-                    print(f"❌ {provider.__class__.__name__} échoué: {e}")
                 last_error = e
                 continue
-        
+
         raise ValueError(f"Aucune source de données disponible. Dernière erreur: {last_error}")
     
     def get_live_price(self, symbol, preferred_provider=None):
@@ -287,16 +275,10 @@ class MultiSourceDataProvider:
             try:
                 price = preferred_provider.get_live_price(symbol)
                 if price:
-                    if self.debug:
-                        print(f"✅ Prix live via {preferred_provider.__class__.__name__}: ${price}")
                     return price
-                else:
-                    if self.debug:
-                        print(f"⚠️  {preferred_provider.__class__.__name__} n'a pas retourné de prix")
-            except Exception as e:
-                if self.debug:
-                    print(f"❌ {preferred_provider.__class__.__name__} live price error: {e}")
-        
+            except Exception:
+                pass
+
         # Fallback to all available providers
         for provider in self.available_providers:
             if provider == preferred_provider:  # Already tried
@@ -304,18 +286,10 @@ class MultiSourceDataProvider:
             try:
                 price = provider.get_live_price(symbol)
                 if price:
-                    if self.debug:
-                        print(f"✅ Prix live via {provider.__class__.__name__}: ${price}")
                     return price
-                else:
-                    if self.debug:
-                        print(f"⚠️  {provider.__class__.__name__} n'a pas retourné de prix")
-            except Exception as e:
-                if self.debug:
-                    print(f"❌ {provider.__class__.__name__} live price error: {e}")
-        
-        if self.debug:
-            print(f"❌ Aucun provider n'a retourné de prix live pour {symbol}")
+            except Exception:
+                pass
+
         return None
 
     def cleanup(self):
@@ -324,11 +298,8 @@ class MultiSourceDataProvider:
             if hasattr(provider, 'disconnect_gracefully'):
                 try:
                     provider.disconnect_gracefully()
-                    if self.debug:
-                        print(f"🔌 {provider.__class__.__name__} déconnecté proprement")
-                except Exception as e:
-                    if self.debug:
-                        print(f"⚠️  Erreur déconnexion {provider.__class__.__name__}: {e}")
+                except Exception:
+                    pass
 
 
 # Test function
