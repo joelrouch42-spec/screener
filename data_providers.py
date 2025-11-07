@@ -249,14 +249,14 @@ class MultiSourceDataProvider:
                     self.available_providers.append(provider)
                     print(f"✅ {provider.__class__.__name__} disponible")
                 else:
-                    print(f"❌ {provider.__class__.__name__} non disponible - IB Gateway en cours d'exécution sur port {provider.port}?")
+                    print(f"❌ {provider.__class__.__name__} non disponible - IB Gateway en cours d'exécution sur port {provider._ib_port}?")
             except Exception as e:
                 print(f"❌ Erreur lors du test de {provider.__class__.__name__}: {e}")
 
         if not self.available_providers:
             raise RuntimeError(
                 f"Aucun data provider disponible!\n"
-                f"IBKR: Vérifiez que IB Gateway est lancé sur 127.0.0.1:{self.providers[0].port}\n"
+                f"IBKR: Vérifiez que IB Gateway est lancé sur 127.0.0.1:{self.providers[0]._ib_port}\n"
                 f"Configuration API: Enable ActiveX and Socket Clients doit être coché"
             )
     

@@ -36,9 +36,10 @@ class IBKRDataProvider(EWrapper, EClient):
         """
         EClient.__init__(self, self)
 
-        self.host = host
-        self.port = port
-        self.client_id = client_id
+        # Store connection parameters (use _ib prefix to avoid conflicts with EClient)
+        self._ib_host = host
+        self._ib_port = port
+        self._ib_client_id = client_id
 
         # Data storage
         self.bars = []
@@ -110,14 +111,14 @@ class IBKRDataProvider(EWrapper, EClient):
     def connect_and_run(self):
         """Connect to IB Gateway/TWS and run message loop"""
         try:
-            self.connect(self.host, self.port, self.client_id)
+            self.connect(self._ib_host, self._ib_port, self._ib_client_id)
             self.run()
         except Exception as e:
             self.error_occurred = True
             # Provide more helpful error message
             if "str, bytes or bytearray expected" in str(e) or "NoneType" in str(e):
                 self.error_message = (
-                    f"IBKR Connection failed: IB Gateway/TWS n'est pas en cours d'exécution sur {self.host}:{self.port}. "
+                    f"IBKR Connection failed: IB Gateway/TWS n'est pas en cours d'exécution sur {self._ib_host}:{self._ib_port}. "
                     f"Lancez IB Gateway (port 4001 pour live, 4002 pour paper) ou TWS (port 7497) et réessayez."
                 )
             else:
@@ -144,7 +145,7 @@ class IBKRDataProvider(EWrapper, EClient):
 
             # Wait for connection
             if not self.connected_event.wait(timeout=10):
-                raise ValueError(f"IBKR: Connection timeout to {self.host}:{self.port}")
+                raise ValueError(f"IBKR: Connection timeout to {self._ib_host}:{self._ib_port}")
 
             if self.error_occurred:
                 raise ValueError(self.error_message)
