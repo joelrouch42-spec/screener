@@ -310,6 +310,18 @@ class MultiSourceDataProvider:
             print(f"❌ Aucun provider n'a retourné de prix live pour {symbol}")
         return None
 
+    def cleanup(self):
+        """Disconnect all providers gracefully"""
+        for provider in self.providers:
+            if hasattr(provider, 'disconnect_gracefully'):
+                try:
+                    provider.disconnect_gracefully()
+                    if self.debug:
+                        print(f"🔌 {provider.__class__.__name__} déconnecté proprement")
+                except Exception as e:
+                    if self.debug:
+                        print(f"⚠️  Erreur déconnexion {provider.__class__.__name__}: {e}")
+
 
 # Test function
 if __name__ == "__main__":

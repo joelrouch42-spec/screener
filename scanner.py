@@ -932,6 +932,14 @@ class StockScanner:
         self.is_running = False
         self.stop_event.set()
 
+        # Disconnect data provider gracefully
+        if self.data_provider and hasattr(self.data_provider, 'cleanup'):
+            try:
+                self.data_provider.cleanup()
+                logger.info("🔌 Data provider disconnected gracefully")
+            except Exception as e:
+                logger.warning(f"⚠️  Error disconnecting data provider: {e}")
+
     def cleanup_old_alerts(self):
         """Clean up old alerts (older than 24h)"""
         cutoff_time = datetime.now() - ALERT_CLEANUP_INTERVAL
