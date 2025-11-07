@@ -7,6 +7,7 @@ With persistent connection to avoid disconnect issues
 
 import time
 import threading
+import logging
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 import pandas as pd
@@ -14,6 +15,11 @@ import pytz
 from ibapi.client import EClient
 from ibapi.wrapper import EWrapper
 from ibapi.contract import Contract, ContractDetails
+
+# Disable noisy ibapi logging
+logging.getLogger('ibapi').setLevel(logging.CRITICAL)
+logging.getLogger('ibapi.client').setLevel(logging.CRITICAL)
+logging.getLogger('ibapi.wrapper').setLevel(logging.CRITICAL)
 
 # Timezone
 EST = ZoneInfo("America/New_York")
