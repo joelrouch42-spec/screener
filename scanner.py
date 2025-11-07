@@ -517,7 +517,8 @@ class StockScanner:
         try:
             # Debug mode based on alerts_only setting
             debug_mode = not self.alerts_only
-            self.data_provider = MultiSourceDataProvider(debug=debug_mode)
+            # Use client_id=2 for scanner to avoid conflict with tabs.py (which uses client_id=1)
+            self.data_provider = MultiSourceDataProvider(debug=debug_mode, ibkr_client_id=2)
 
             if not self.alerts_only:
                 logger.info("✅ Data provider initialized")

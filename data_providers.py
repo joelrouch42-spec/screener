@@ -226,7 +226,7 @@ class YahooFinanceProvider(DataProvider):
 class MultiSourceDataProvider:
     """Orchestrates multiple data providers with fallback"""
 
-    def __init__(self, polygon_key=None, alphavantage_key=None, use_ibkr=True, debug=False):
+    def __init__(self, polygon_key=None, alphavantage_key=None, use_ibkr=True, debug=False, ibkr_client_id=1):
         self.debug = debug
         self.providers = []
 
@@ -235,9 +235,9 @@ class MultiSourceDataProvider:
             raise RuntimeError("IBKR provider is not available. Please install ibapi: pip install ibapi")
 
         try:
-            self.providers.append(IBKRProvider())
+            self.providers.append(IBKRProvider(client_id=ibkr_client_id))
             if self.debug:
-                print("🔌 IBKRProvider configuré (mode exclusif)")
+                print(f"🔌 IBKRProvider configuré (mode exclusif) - client_id={ibkr_client_id}")
         except Exception as e:
             raise RuntimeError(f"Impossible d'initialiser IBKR: {e}")
 
