@@ -244,13 +244,21 @@ class MultiSourceDataProvider:
         # Test which providers are available
         self.available_providers = []
         for provider in self.providers:
-            if provider.is_available():
-                self.available_providers.append(provider)
-                if self.debug:
+            try:
+                if provider.is_available():
+                    self.available_providers.append(provider)
                     print(f"✅ {provider.__class__.__name__} disponible")
-            else:
-                if self.debug:
-                    print(f"❌ {provider.__class__.__name__} non disponible")
+                else:
+                    print(f"❌ {provider.__class__.__name__} non disponible - IB Gateway en cours d'exécution sur port {provider.port}?")
+            except Exception as e:
+                print(f"❌ Erreur lors du test de {provider.__class__.__name__}: {e}")
+
+        if not self.available_providers:
+            raise RuntimeError(
+                f"Aucun data provider disponible!\n"
+                f"IBKR: Vérifiez que IB Gateway est lancé sur 127.0.0.1:{self.providers[0].port}\n"
+                f"Configuration API: Enable ActiveX and Socket Clients doit être coché"
+            )
     
     def fetch_data(self, symbol, days=80, period=60, end_date=None):
         """Try each provider until one succeeds"""
