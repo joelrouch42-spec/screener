@@ -1,4 +1,0 @@
-# Test configuration - petit échantillon
-AAPL auto
-NVDA auto
-TSLA auto
