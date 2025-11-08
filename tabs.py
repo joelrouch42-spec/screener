@@ -715,8 +715,11 @@ def main():
     watchlist = list(SYMBOLS_CONFIG.keys())
     SECTOR_MAP = load_sector_mapping('sector_mapping.txt')
 
+    # Déterminer le mode : replay_mode = backtest_mode
+    backtest_mode = SETTINGS.get('debug', {}).get('replay_mode', True)
+
     try:
-        DATA_PROVIDER = MultiSourceDataProvider()
+        DATA_PROVIDER = MultiSourceDataProvider(backtest_mode=backtest_mode)
     except Exception:
         logger.exception('❌ ERREUR INITIALISATION DATA PROVIDER')
         sys.exit(1)

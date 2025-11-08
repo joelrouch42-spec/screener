@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 """
 Multi-source data provider with fallback system
-Tries: IBKR -> Polygon -> Alpha Vantage -> Yahoo Finance
+Mode backtest: Yahoo Finance -> CSV cache in data/
+Mode réel: IBKR direct
 """
 
+import os
 import requests
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 import yfinance as yf
 from abc import ABC, abstractmethod
+from pathlib import Path
 
 # Import IBKR provider
 try:
@@ -18,6 +21,71 @@ try:
 except ImportError:
     print("⚠️  IBKR provider non disponible (ib_insync non installé)")
     IBKR_AVAILABLE = False
+
+# Cache directory
+CACHE_DIR = Path(__file__).parent / "data"
+CACHE_DIR.mkdir(exist_ok=True)
+
+
+def get_cache_path(symbol: str) -> Path:
+    """Retourne le chemin du fichier CSV cache pour un symbole"""
+    return CACHE_DIR / f"{symbol}.csv"
+
+
+def load_from_cache(symbol: str, days: int = 150) -> pd.DataFrame:
+    """
+    Charge les données depuis le cache CSV
+
+    Args:
+        symbol: Symbole de l'action
+        days: Nombre de jours minimum requis
+
+    Returns:
+        DataFrame ou None si pas de cache valide
+    """
+    cache_file = get_cache_path(symbol)
+
+    if not cache_file.exists():
+        return None
+
+    try:
+        df = pd.read_csv(cache_file, index_col=0, parse_dates=True)
+
+        # Vérifier que le cache a assez de données
+        if len(df) < days:
+            print(f"📦 Cache {symbol}: seulement {len(df)} lignes, requis {days}")
+            return None
+
+        # Vérifier la fraîcheur (dernière date doit être récente pour mode réel)
+        # En mode backtest, on s'en fout de la fraîcheur
+
+        print(f"✅ Cache HIT pour {symbol}: {len(df)} lignes")
+        return df
+
+    except Exception as e:
+        print(f"❌ Erreur lecture cache {symbol}: {e}")
+        return None
+
+
+def save_to_cache(symbol: str, df: pd.DataFrame):
+    """
+    Sauvegarde les données dans le cache CSV
+
+    Args:
+        symbol: Symbole de l'action
+        df: DataFrame à sauvegarder
+    """
+    if df is None or df.empty:
+        return
+
+    cache_file = get_cache_path(symbol)
+
+    try:
+        # Sauvegarder avec l'index (Date)
+        df.to_csv(cache_file)
+        print(f"💾 Cache SAVED pour {symbol}: {len(df)} lignes -> {cache_file}")
+    except Exception as e:
+        print(f"❌ Erreur sauvegarde cache {symbol}: {e}")
 
 
 class DataProvider(ABC):
@@ -207,23 +275,29 @@ class YahooFinanceProvider(DataProvider):
 
 
 class MultiSourceDataProvider:
-    """Orchestrates multiple data providers with fallback"""
-    
-    def __init__(self, polygon_key=None, alphavantage_key=None, use_ibkr=False, debug=False):
+    """
+    Orchestrates multiple data providers with two modes:
+    - backtest_mode=True: Yahoo Finance + CSV cache in data/
+    - backtest_mode=False: IBKR direct (real-time)
+    """
+
+    def __init__(self, backtest_mode=True, polygon_key=None, alphavantage_key=None, debug=False):
         self.debug = debug
+        self.backtest_mode = backtest_mode
         self.providers = []
-        
-        # IBKR désactivé temporairement (abonnement requis)
-        # if use_ibkr and IBKR_AVAILABLE:
-        #     self.providers.append(IBKRProvider(client_id=4))
-        
-        # Add other providers
-        self.providers.extend([
-            PolygonProvider(polygon_key),
-            AlphaVantageProvider(alphavantage_key),
-            YahooFinanceProvider()
-        ])
-        
+
+        if backtest_mode:
+            # Mode backtest : Yahoo uniquement (+ cache CSV)
+            print("📊 MODE BACKTEST: Yahoo Finance + CSV cache")
+            self.providers = [YahooFinanceProvider()]
+        else:
+            # Mode réel : IBKR uniquement
+            print("🔴 MODE RÉEL: IBKR direct")
+            if IBKR_AVAILABLE:
+                self.providers = [IBKRProvider(client_id=4)]
+            else:
+                raise RuntimeError("IBKR non disponible. Installez ib_insync: pip install ib_insync")
+
         # Test which providers are available
         self.available_providers = []
         for provider in self.providers:
@@ -236,24 +310,51 @@ class MultiSourceDataProvider:
                     print(f"❌ {provider.__class__.__name__} non disponible")
     
     def fetch_data(self, symbol, days=80, period=60):
-        """Try each provider until one succeeds"""
-        last_error = None
-        
-        for provider in self.available_providers:
+        """
+        Fetch data with two strategies:
+        - backtest_mode: CSV cache first, then Yahoo + save to cache
+        - real mode: IBKR direct
+        """
+        # MODE BACKTEST : Essayer cache CSV d'abord
+        if self.backtest_mode:
+            cached_df = load_from_cache(symbol, days)
+            if cached_df is not None:
+                # Cache hit ! Retourner directement
+                return cached_df.tail(period), YahooFinanceProvider()
+
+            # Cache miss : télécharger depuis Yahoo et sauvegarder
+            print(f"📥 Cache MISS pour {symbol}, téléchargement Yahoo...")
             try:
-                if self.debug:
-                    print(f"🔄 Tentative {provider.__class__.__name__}...")
-                df = provider.fetch_data(symbol, days, period)
-                if self.debug:
-                    print(f"✅ Données récupérées via {provider.__class__.__name__}")
-                return df, provider
+                yahoo_provider = YahooFinanceProvider()
+                df = yahoo_provider.fetch_data(symbol, days=days, period=period)
+
+                # Sauvegarder dans le cache (on sauvegarde plus que period pour futurs usages)
+                # Télécharger plus de données pour le cache
+                full_df = yahoo_provider.fetch_data(symbol, days=365, period=365)
+                save_to_cache(symbol, full_df)
+
+                return df, yahoo_provider
             except Exception as e:
-                if self.debug:
-                    print(f"❌ {provider.__class__.__name__} échoué: {e}")
-                last_error = e
-                continue
-        
-        raise ValueError(f"Aucune source de données disponible. Dernière erreur: {last_error}")
+                raise ValueError(f"Impossible de télécharger {symbol} depuis Yahoo: {e}")
+
+        # MODE RÉEL : IBKR direct (pas de cache)
+        else:
+            last_error = None
+            for provider in self.available_providers:
+                try:
+                    if self.debug:
+                        print(f"🔄 Tentative {provider.__class__.__name__}...")
+                    df = provider.fetch_data(symbol, days, period)
+                    if self.debug:
+                        print(f"✅ Données récupérées via {provider.__class__.__name__}")
+                    return df, provider
+                except Exception as e:
+                    if self.debug:
+                        print(f"❌ {provider.__class__.__name__} échoué: {e}")
+                    last_error = e
+                    continue
+
+            raise ValueError(f"Aucune source de données disponible. Dernière erreur: {last_error}")
     
     def get_live_price(self, symbol, preferred_provider=None):
         """Get live price, try preferred provider first then fallback"""

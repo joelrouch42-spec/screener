@@ -823,52 +823,93 @@ python3 backtest_catalysts.py --output results.csv
 
         <h2 id="providers">📊 data_providers.py - Sources de données</h2>
 
-        <h3>MultiSourceDataProvider avec fallback :</h3>
-        <div class="code-block">
-class MultiSourceDataProvider:
-    providers = [
-        PolygonProvider(),      <span class="code-comment"># 1️⃣ Temps réel (payant)</span>
-        AlphaVantageProvider(), <span class="code-comment"># 2️⃣ Gratuit limité</span>
-        YahooProvider()         <span class="code-comment"># 3️⃣ Fallback fiable</span>
-    ]
-
-    def fetch(symbol):
-        <span class="code-comment"># Essaie chaque provider dans l'ordre</span>
-        <span class="code-comment"># Retourne dès que l'un réussit</span>
+        <div class="important">
+            <strong>🆕 NOUVEAU SYSTÈME DUAL-MODE :</strong><br>
+            • <strong>Mode Backtest</strong> : Yahoo Finance + Cache CSV dans <code>data/</code><br>
+            • <strong>Mode Réel</strong> : IBKR direct (temps réel)
         </div>
 
-        <h3>Providers supportés :</h3>
+        <h3>MultiSourceDataProvider - Deux modes :</h3>
+        <div class="code-block">
+class MultiSourceDataProvider:
+    def __init__(self, backtest_mode=True):
+        if backtest_mode:
+            <span class="code-comment"># Mode backtest : Yahoo + CSV cache</span>
+            <span class="code-comment"># 1. Cherche dans data/SYMBOL.csv</span>
+            <span class="code-comment"># 2. Si pas de cache : télécharge Yahoo et sauvegarde</span>
+            providers = [YahooFinanceProvider()]
+        else:
+            <span class="code-comment"># Mode réel : IBKR uniquement</span>
+            <span class="code-comment"># Connexion directe à Interactive Brokers</span>
+            providers = [IBKRProvider()]
+        </div>
+
+        <h3>Système de Cache CSV :</h3>
+        <div class="success">
+            <strong>✨ Performance optimale pour backtests</strong><br>
+            • Fichiers CSV stockés dans <code>data/SYMBOL.csv</code><br>
+            • Téléchargement unique depuis Yahoo Finance<br>
+            • Réutilisation instantanée pour backtests suivants<br>
+            • Pas de timeout le week-end ou hors heures de marché
+        </div>
+
+        <h4>Fonctions de cache :</h4>
+        <div class="code-block">
+<span class="code-comment"># Charger depuis cache</span>
+cached_df = load_from_cache(symbol, days=150)
+
+<span class="code-comment"># Sauvegarder dans cache</span>
+save_to_cache(symbol, df)
+
+<span class="code-comment"># Chemin : data/NVDA.csv, data/AAPL.csv, etc.</span>
+        </div>
+
+        <h3>Configuration du mode :</h3>
+        <div class="code-block">
+<span class="code-comment"># Dans settings.json</span>
+"debug": {
+  "replay_mode": true,   <span class="code-comment">// true = backtest, false = réel</span>
+  "candle_offset": 10
+}
+        </div>
+
+        <h3>Comparaison des modes :</h3>
         <table>
             <thead>
                 <tr>
-                    <th>Provider</th>
+                    <th>Mode</th>
+                    <th>Source</th>
                     <th>Avantages</th>
-                    <th>Limites</th>
+                    <th>Usage</th>
                 </tr>
             </thead>
             <tbody>
                 <tr>
-                    <td>Polygon.io</td>
-                    <td>Temps réel, fiable</td>
-                    <td>Payant (~$99/mois)</td>
+                    <td><strong>Backtest</strong><br>(replay_mode: true)</td>
+                    <td>Yahoo Finance<br>+ CSV cache</td>
+                    <td>• Pas de timeout<br>• Marche week-end<br>• Ultra rapide (cache)<br>• Gratuit</td>
+                    <td>Développement<br>Tests<br>Backtesting</td>
                 </tr>
                 <tr>
-                    <td>Alpha Vantage</td>
-                    <td>Gratuit</td>
-                    <td>5 req/min, 500 req/jour</td>
-                </tr>
-                <tr>
-                    <td>Yahoo Finance</td>
-                    <td>Gratuit, illimité</td>
-                    <td>Délai 15-20 min</td>
-                </tr>
-                <tr>
-                    <td>IBKR (ibkr_provider.py)</td>
-                    <td>Données broker réelles</td>
-                    <td>Compte Interactive Brokers requis</td>
+                    <td><strong>Réel</strong><br>(replay_mode: false)</td>
+                    <td>IBKR direct</td>
+                    <td>• Temps réel<br>• Données broker<br>• Tick-by-tick<br>• Fiabilité max</td>
+                    <td>Trading live<br>Production</td>
                 </tr>
             </tbody>
         </table>
+
+        <h3>Workflow du cache :</h3>
+        <div class="flow-diagram">
+            <div>1. 🔍 Check si data/SYMBOL.csv existe</div>
+            <div>↓</div>
+            <div>2a. ✅ Cache HIT → Lecture instantanée</div>
+            <div>2b. ❌ Cache MISS → Téléchargement Yahoo</div>
+            <div>↓</div>
+            <div>3. 💾 Sauvegarde dans data/ (365 jours d'historique)</div>
+            <div>↓</div>
+            <div>4. 📊 Retourne les données demandées</div>
+        </div>
 
         <h2 id="alerts">🚨 Types d'alertes détectées</h2>
 
@@ -1050,6 +1091,25 @@ nano sector_mapping.txt
             → Vérifiez <code>"alerts_only": true</code> dans logging
         </div>
 
+        <div class="error-help">
+            <strong>"IBKR: Historical data timeout" ou "Historical data farm: Inactive"</strong><br>
+            → IBKR n'est pas disponible (week-end ou hors heures)<br>
+            → <strong>Solution :</strong> Activez le mode backtest dans settings.json :<br>
+            <code>"debug": { "replay_mode": true }</code><br>
+            → Le système utilisera Yahoo Finance + cache CSV automatiquement
+        </div>
+
+        <div class="success">
+            <strong>💡 ASTUCE : Mode backtest par défaut</strong><br>
+            En mode backtest (<code>replay_mode: true</code>), le système :<br>
+            • Utilise Yahoo Finance + cache CSV dans <code>data/</code><br>
+            • Fonctionne 24/7, même week-end<br>
+            • Pas de timeout IBKR<br>
+            • Performance optimale (cache instantané)<br>
+            <br>
+            Passez en mode réel (<code>replay_mode: false</code>) uniquement pour trading live avec IBKR.
+        </div>
+
         <h3>Mode debug :</h3>
         <div class="code-block">
 <span class="code-comment"># Activer logs détaillés dans settings.json</span>
@@ -1108,9 +1168,10 @@ nano sector_mapping.txt
         </div>
 
         <footer style="text-align: center; margin-top: 40px; padding: 20px; border-top: 2px solid #ddd; color: #666;">
-            <p>📚 Documentation mise à jour le 07/11/2025</p>
-            <p>📊 Stock Screener - Version 3.0</p>
-            <p>⚡ Dual-mode (GUI Dashboard + CLI Scanner) avec cache intelligent et filtrage avancé</p>
+            <p>📚 Documentation mise à jour le 08/11/2025</p>
+            <p>📊 Stock Screener - Version 3.1</p>
+            <p>⚡ Dual-mode (Backtest: Yahoo+CSV cache | Réel: IBKR direct)</p>
+            <p>✨ Nouveau : Système de cache CSV pour backtests ultra-rapides</p>
         </footer>
     </div>
 </body>

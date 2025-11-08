@@ -214,9 +214,9 @@ def main():
         print("❌ Aucune configuration trouvée!")
         sys.exit(1)
     
-    # Initialize providers
+    # Initialize providers (backtest mode forcé)
     try:
-        data_provider = MultiSourceDataProvider()
+        data_provider = MultiSourceDataProvider(backtest_mode=True)
         analyzer = CatalystAnalyzer("backtest_history.json")
         print(f"✅ Providers: {', '.join([p.__class__.__name__ for p in data_provider.available_providers])}")
     except Exception as e:

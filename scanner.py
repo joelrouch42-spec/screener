@@ -261,7 +261,11 @@ class StockScanner:
         try:
             # Passer debug=False sauf si mode debug activé
             debug_mode = not self.alerts_only
-            self.data_provider = MultiSourceDataProvider(debug=debug_mode)
+
+            # Déterminer le mode : replay_mode = backtest_mode
+            backtest_mode = self.settings.get('debug', {}).get('replay_mode', True)
+
+            self.data_provider = MultiSourceDataProvider(backtest_mode=backtest_mode, debug=debug_mode)
             if not self.alerts_only:
                 logger.info("✅ Data provider initialisé")
         except Exception as e:
