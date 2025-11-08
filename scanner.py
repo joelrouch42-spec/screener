@@ -413,11 +413,12 @@ class StockScanner:
                 # Déterminer le type d'alerte
                 alert_type = alert_info.get('type', 'unknown')
                 is_technical = alert_type in ['resistance_breakout', 'support_breakdown']
-                
+
+
                 # Éviter les alertes en double
                 alert_key = f"{symbol}_{alert_type}"
-                now = datetime.now()
-                
+                now = datetime.now(EST)
+
                 # Vérifier si alerte récente (dernières 2 heures pour catalyst, 30 min pour technique)
                 cooldown = timedelta(minutes=30) if is_technical else timedelta(hours=2)
                 if alert_key in self.recent_alerts:
@@ -470,9 +471,9 @@ class StockScanner:
         
         change_pct = ((current_price - previous_price) / previous_price) * 100
         change_direction = "+" if change_pct > 0 else "-"
-        
+
         # Format compact sur une ligne
-        timestamp = datetime.now().strftime('%H:%M:%S')
+        timestamp = datetime.now(EST).strftime('%H:%M:%S EST')
         sector = alert['sector'].upper()
         price = f"${current_price:.2f}"
         change = f"({change_direction}{abs(change_pct):.2f}%)"
@@ -524,11 +525,11 @@ class StockScanner:
         while self.is_running and not self.stop_event.is_set():
             scan_count += 1
             start_time = time.time()
-            
+
             if not self.alerts_only:
-                print(f"\n🔄 Scan #{scan_count} - {datetime.now().strftime('%H:%M:%S')}")
+                print(f"\n🔄 Scan #{scan_count} - {datetime.now(EST).strftime('%H:%M:%S EST')}")
                 print("-" * 50)
-            
+
             alerts_found = self.scan_all_symbols()
             
             scan_duration = time.time() - start_time
@@ -556,9 +557,9 @@ class StockScanner:
         
     def cleanup_old_alerts(self):
         """Nettoie les anciennes alertes (plus de 24h)"""
-        cutoff_time = datetime.now() - timedelta(hours=24)
+        cutoff_time = datetime.now(EST) - timedelta(hours=24)
         keys_to_remove = []
-        
+
         for key, timestamp in self.recent_alerts.items():
             if timestamp < cutoff_time:
                 keys_to_remove.append(key)

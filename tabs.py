@@ -17,6 +17,7 @@ import logging
 import sys
 from datetime import datetime, timedelta
 from typing import Dict, List, Tuple, Optional
+from zoneinfo import ZoneInfo
 
 import numpy as np
 import pandas as pd
@@ -32,6 +33,8 @@ from scipy.signal import argrelextrema
 from data_providers import MultiSourceDataProvider
 from catalyst_analyzer import CatalystAnalyzer, integrate_with_dashboard, load_settings
 
+# Timezone
+EST = ZoneInfo("America/New_York")
 
 # ----------------------
 # Logging
@@ -57,24 +60,24 @@ class LevelsCache:
         """Récupère les niveaux en cache s'ils sont valides"""
         if symbol not in self.cache:
             return None
-            
+
         cache_entry = self.cache[symbol]
-        now = datetime.now()
-        
+        now = datetime.now(EST)
+
         # Vérifier si le cache n'est pas expiré
         if now - cache_entry['timestamp'] > self.cache_duration:
             logger.info(f"🗑️  Cache expiré pour {symbol}")
             del self.cache[symbol]
             return None
-            
+
         logger.info(f"📦 Cache HIT pour {symbol}")
         return cache_entry
         
-    def set_levels(self, symbol: str, support_levels: List[float], resistance_levels: List[float], 
+    def set_levels(self, symbol: str, support_levels: List[float], resistance_levels: List[float],
                    df: pd.DataFrame, last_price: float):
         """Sauvegarde les niveaux en cache"""
         self.cache[symbol] = {
-            'timestamp': datetime.now(),
+            'timestamp': datetime.now(EST),
             'support_levels': support_levels.copy() if isinstance(support_levels, list) else list(support_levels),
             'resistance_levels': resistance_levels.copy() if isinstance(resistance_levels, list) else list(resistance_levels),
             'last_price': last_price,
@@ -618,7 +621,7 @@ def update_display(active_tab: Optional[str], n: int):
             except Exception as e:
                 logger.exception(f'❌ Erreur intégration catalyst pour {symbol}: {e}')
 
-        last_fetch_time = datetime.now().strftime('%H:%M:%S')
+        last_fetch_time = datetime.now(EST).strftime('%H:%M:%S EST')
 
         live_price = float(df['Close'].iat[-1])
         prev_close = float(df['Close'].iat[-2]) if len(df) >= 2 else live_price
