@@ -28,13 +28,27 @@ CACHE_DIR.mkdir(exist_ok=True)
 
 
 def get_cache_path(symbol: str) -> Path:
-    """Retourne le chemin du fichier CSV cache pour un symbole"""
-    return CACHE_DIR / f"{symbol}.csv"
+    """Retourne le chemin du fichier CSV cache pour un symbole avec date"""
+    today = datetime.now().strftime('%Y-%m-%d')
+    return CACHE_DIR / f"{today}_{symbol}.csv"
+
+
+def find_latest_cache(symbol: str) -> Path:
+    """Trouve le fichier cache le plus récent pour un symbole"""
+    # Chercher tous les fichiers qui matchent le pattern *_SYMBOL.csv
+    cache_files = list(CACHE_DIR.glob(f"*_{symbol}.csv"))
+
+    if not cache_files:
+        return None
+
+    # Trier par date de modification (plus récent en premier)
+    cache_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+    return cache_files[0]
 
 
 def load_from_cache(symbol: str, days: int = 150) -> pd.DataFrame:
     """
-    Charge les données depuis le cache CSV
+    Charge les données depuis le cache CSV (cherche le plus récent)
 
     Args:
         symbol: Symbole de l'action
@@ -43,9 +57,10 @@ def load_from_cache(symbol: str, days: int = 150) -> pd.DataFrame:
     Returns:
         DataFrame ou None si pas de cache valide
     """
-    cache_file = get_cache_path(symbol)
+    # Chercher le fichier cache le plus récent
+    cache_file = find_latest_cache(symbol)
 
-    if not cache_file.exists():
+    if not cache_file or not cache_file.exists():
         return None
 
     try:
@@ -59,7 +74,7 @@ def load_from_cache(symbol: str, days: int = 150) -> pd.DataFrame:
         # Vérifier la fraîcheur (dernière date doit être récente pour mode réel)
         # En mode backtest, on s'en fout de la fraîcheur
 
-        print(f"✅ Cache HIT pour {symbol}: {len(df)} lignes")
+        print(f"✅ Cache HIT pour {symbol}: {len(df)} lignes (fichier: {cache_file.name})")
         return df
 
     except Exception as e:
