@@ -1,0 +1,5 @@
+ 1642  python3 -m venv venv
+ 1643  sudo apt install python3.12-venv
+ 1644  python3 -m venv venv
+ 1645  source venv/bin/activate
+ 1646  pip install numpy pandas yfinance plotly dash dash-bootstrap-components scipy
