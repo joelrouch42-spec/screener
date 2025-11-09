@@ -49,24 +49,19 @@ def find_latest_cache(symbol: str) -> Path:
 def load_from_cache(symbol: str, days: int = 150) -> pd.DataFrame:
     """
     Charge les données depuis le cache CSV (cherche le plus récent)
-    Vérifie que le fichier est daté d'aujourd'hui avant de l'utiliser
+    Vérifie UNIQUEMENT que le fichier est daté d'aujourd'hui
 
     Args:
         symbol: Symbole de l'action
-        days: Nombre de jours minimum requis
+        days: Non utilisé (gardé pour compatibilité API)
 
     Returns:
         DataFrame ou None si pas de cache valide
     """
-    print(f"🔍 DEBUG: Looking for cache file for {symbol} (need {days} days)")
-
     # Chercher le fichier cache le plus récent
     cache_file = find_latest_cache(symbol)
 
-    print(f"🔍 DEBUG: find_latest_cache returned: {cache_file}")
-
     if not cache_file or not cache_file.exists():
-        print(f"🔍 DEBUG: No cache file found for {symbol}")
         return None
 
     try:
@@ -75,29 +70,19 @@ def load_from_cache(symbol: str, days: int = 150) -> pd.DataFrame:
         file_date_str = filename.split('_')[0]  # Extraire YYYY-MM-DD
         today_str = datetime.now().strftime('%Y-%m-%d')
 
-        print(f"🔍 DEBUG: File date: {file_date_str}, Today: {today_str}, Match: {file_date_str == today_str}")
-
         # Vérifier si le fichier est daté d'aujourd'hui
         if file_date_str != today_str:
             print(f"📅 Cache obsolète pour {symbol}: fichier du {file_date_str}, aujourd'hui {today_str}")
             return None
 
+        # Charger le fichier - pas de vérification du nombre de lignes
         df = pd.read_csv(cache_file, index_col=0, parse_dates=True)
-
-        print(f"🔍 DEBUG: Loaded {len(df)} rows from cache")
-
-        # Vérifier que le cache a assez de données
-        if len(df) < days:
-            print(f"📦 Cache {symbol}: seulement {len(df)} lignes, requis {days}")
-            return None
 
         print(f"✅ Cache HIT pour {symbol}: {len(df)} lignes (fichier: {cache_file.name})")
         return df
 
     except Exception as e:
         print(f"❌ Erreur lecture cache {symbol}: {e}")
-        import traceback
-        traceback.print_exc()
         return None
 
 
@@ -352,8 +337,7 @@ class MultiSourceDataProvider:
         """
         # MODE BACKTEST : Essayer cache CSV d'abord
         if self.backtest_mode:
-            # Check cache with period requirement (not days, since Yahoo may return less)
-            cached_df = load_from_cache(symbol, period)
+            cached_df = load_from_cache(symbol)
             if cached_df is not None:
                 # Cache hit ! Retourner directement
                 print(f"⏭️  SKIPPED download for {symbol}: using cached data from today")
