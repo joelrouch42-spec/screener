@@ -297,16 +297,16 @@ class StockScanner:
     def scan_symbol(self, symbol: str) -> Optional[Dict]:
         """Scan un symbole et retourne une alerte si détectée (VERSION OPTIMISÉE)"""
         try:
-            # Vérifier si le marché est ouvert
-            if not self.is_market_open():
-                return None  # Pas d'analyse si marché fermé
-                
-            sector = self.sector_map.get(symbol, 'unknown')
-            
             # Mode replay ou temps réel
             debug_config = self.settings.get("debug", {})
             candle_offset = debug_config.get("candle_offset", 0)
             replay_mode = debug_config.get("replay_mode", False)
+
+            # Vérifier si le marché est ouvert (sauf en mode replay/backtest)
+            if not replay_mode and not self.is_market_open():
+                return None  # Pas d'analyse si marché fermé (mode réel uniquement)
+
+            sector = self.sector_map.get(symbol, 'unknown')
 
             if candle_offset > 0:
                 # Mode replay : récupérer les données historiques complètes
