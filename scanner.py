@@ -302,8 +302,8 @@ class StockScanner:
             debug_config = self.settings.get("debug", {})
             candle_offset = debug_config.get("candle_offset", 0)
             replay_mode = debug_config.get("replay_mode", False)
-            
-            if replay_mode and candle_offset > 0:
+
+            if candle_offset > 0:
                 # Mode replay : récupérer les données historiques complètes
                 df_full, provider_used = self.data_provider.fetch_data(
                     symbol,
@@ -338,18 +338,36 @@ class StockScanner:
                 
                 print(f"🔄 [REPLAY] {symbol} bougie offset {candle_offset} ({df_full.index[target_idx].strftime('%Y-%m-%d %H:%M')})")
             else:
-                # Mode temps réel normal
-                data_result = get_latest_data_with_cached_levels(symbol, self.data_provider, self.settings)
-                
-                if data_result is None:
+                # Mode normal (candle_offset = 0) : utilise data_provider pour backtest ou réel
+                # Ceci va afficher "DOWNLOADING" ou "SKIPPED" selon le mode
+                df_full, provider_used = self.data_provider.fetch_data(
+                    symbol,
+                    days=self.settings["data"]["days_fetch"],
+                    period=self.settings["data"]["period_candles"]
+                )
+
+                if df_full is None or len(df_full) < 1:
                     logger.warning(f'⚠️  Impossible de récupérer les données pour {symbol}')
                     return None
-                    
-                latest_candle = data_result['latest_candle']
-                support_levels = data_result['support_levels'] 
-                resistance_levels = data_result['resistance_levels']
-                provider_used = data_result['provider_used']
-                cache_hit = data_result['cache_hit']
+
+                # Utiliser la dernière bougie
+                latest_candle = df_full.iloc[-1]
+
+                # Calculer S/R (ou utiliser cache)
+                data_result = get_latest_data_with_cached_levels(symbol, self.data_provider, self.settings)
+                if data_result:
+                    support_levels = data_result['support_levels']
+                    resistance_levels = data_result['resistance_levels']
+                    cache_hit = data_result['cache_hit']
+                else:
+                    # Fallback: calculer S/R sans cache
+                    from tabs import find_levels
+                    support_levels, resistance_levels = find_levels(
+                        df_full,
+                        self.settings["support_resistance"]["order"],
+                        self.settings["support_resistance"]["cluster_threshold"]
+                    )
+                    cache_hit = False
             
             if cache_hit:
                 logger.debug(f"📦 {symbol}: Cache HIT S/R")
