@@ -344,16 +344,18 @@ class MultiSourceDataProvider:
             cached_df = load_from_cache(symbol, days)
             if cached_df is not None:
                 # Cache hit ! Retourner directement
+                print(f"⏭️  SKIPPED download for {symbol}: using cached data from today")
                 return cached_df.tail(period), YahooFinanceProvider()
 
             # Cache miss : télécharger depuis Yahoo et sauvegarder
-            print(f"📥 Cache MISS pour {symbol}, téléchargement Yahoo...")
+            print(f"📥 DOWNLOADING {symbol} from Yahoo Finance (no valid cache)...")
             try:
                 yahoo_provider = YahooFinanceProvider()
                 df = yahoo_provider.fetch_data(symbol, days=days, period=period)
 
                 # Sauvegarder dans le cache (on sauvegarde plus que period pour futurs usages)
                 # Télécharger plus de données pour le cache
+                print(f"💾 Fetching full year of data for {symbol} to populate cache...")
                 full_df = yahoo_provider.fetch_data(symbol, days=365, period=365)
                 save_to_cache(symbol, full_df)
 
