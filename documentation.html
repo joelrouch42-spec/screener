@@ -418,6 +418,14 @@
                 <strong>📱 Multi-onglets</strong><br>
                 Plusieurs symboles simultanés
             </div>
+            <div class="feature-card">
+                <strong>📈 Δ% Moy/Seuil</strong><br>
+                Affiche moyenne mouvement + seuil dynamique
+            </div>
+            <div class="feature-card">
+                <strong>📜 Catalyst Log</strong><br>
+                Historique 365 jours des catalyseurs
+            </div>
         </div>
 
         <h3>⚡ Mode CLI Scanner (scanner.py)</h3>
@@ -605,10 +613,11 @@ JPM finance
 
         <h3>Fonctionnement du cache :</h3>
         <ul>
-            <li>🔄 <strong>Cache partagé</strong> : GUI et Scanner utilisent les mêmes données</li>
-            <li>⏰ <strong>TTL 1 minute</strong> : Données expirées après 1 minute</li>
+            <li>🔄 <strong>Cache partagé</strong> : GUI et Scanner utilisent les mêmes données (LevelsCache)</li>
+            <li>⏰ <strong>TTL 4 heures</strong> : Données expirées après 4 heures</li>
             <li>📊 <strong>Niveaux S/R persistants</strong> : Évite le recalcul inutile</li>
             <li>💾 <strong>En mémoire</strong> : Pas d'écriture disque, ultra rapide</li>
+            <li>🎯 <strong>Refresh intelligent</strong> : Recalcul auto si prix bouge >5%</li>
         </ul>
 
         <h3>Avantages :</h3>
@@ -635,15 +644,22 @@ JPM finance
 
         <h3>Architecture :</h3>
         <div class="code-block">
+class LevelsCache:
+    get_levels()              <span class="code-comment"># Récupère niveaux S/R en cache (TTL 4h)</span>
+    set_levels()              <span class="code-comment"># Sauvegarde niveaux en cache</span>
+    should_refresh_levels()   <span class="code-comment"># Vérifie si prix a bougé >5%</span>
+
 class ChartData:
-    fetch_data()         <span class="code-comment"># Télécharge données depuis providers</span>
-    calculate_metrics()  <span class="code-comment"># Calcule moyennes, volatilité, etc.</span>
+    fetch_data()              <span class="code-comment"># Télécharge historique complet</span>
+    fetch_latest_candle()     <span class="code-comment"># Optimisé: seulement dernière bougie</span>
+    calculate_metrics()       <span class="code-comment"># Calcule moyennes, volatilité, etc.</span>
 
 class SupportResistance:
-    find_levels()        <span class="code-comment"># Détecte niveaux S/R (cache intelligent)</span>
-    detect_breakouts()   <span class="code-comment"># Identifie cassures avec volume</span>
+    find_levels()             <span class="code-comment"># Détecte niveaux S/R avec scipy</span>
+    detect_breakouts()        <span class="code-comment"># Identifie cassures avec volume</span>
 
-def create_chart():      <span class="code-comment"># Génère graphiques Plotly interactifs</span>
+def get_latest_data_with_cached_levels():  <span class="code-comment"># API pour Scanner</span>
+def create_chart():                        <span class="code-comment"># Graphiques Plotly</span>
 
 @app.callback
 def update_display():    <span class="code-comment"># ⚡ Cœur du système - MAJ toutes les 60s</span>
@@ -651,31 +667,51 @@ def update_display():    <span class="code-comment"># ⚡ Cœur du système - MA
 
         <h3>Flux d'exécution :</h3>
         <div class="flow-diagram">
-            <div>1. 📖 Lit config.txt + sector_mapping.txt</div>
+            <div>1. 📖 Lit config.txt + sector_mapping.txt + settings.json</div>
             <div>↓</div>
-            <div>2. 🔌 Initialise MultiSourceDataProvider</div>
+            <div>2. 🔌 Initialise MultiSourceDataProvider (mode backtest ou réel)</div>
             <div>↓</div>
-            <div>3. 📊 Analyse historique (120 bougies par défaut)</div>
+            <div>3. 🤖 Initialise CatalystAnalyzer avec API Claude</div>
             <div>↓</div>
-            <div>4. 🌐 Lance serveur Dash sur port 8050</div>
+            <div>4. 🔍 Analyse historique complète au démarrage (tous symboles)</div>
             <div>↓</div>
-            <div>5. 🔄 Boucle toutes les 60s : fetch → analyze → display</div>
+            <div>5. 🌐 Lance serveur Dash sur port 8050</div>
+            <div>↓</div>
+            <div>6. 🔄 Boucle toutes les 60s : fetch → cache S/R → analyze → display</div>
         </div>
 
         <h2 id="scanner">⚡ scanner.py - Le Scanner CLI</h2>
 
         <div class="info-box">
             <strong>Scanner optimisé pour surveillance continue</strong><br>
-            610 lignes de code dédiées à la performance et au mode silencieux
+            618 lignes de code dédiées à la performance et au mode silencieux
+        </div>
+
+        <h3>Architecture :</h3>
+        <div class="code-block">
+class StockScanner:
+    load_configuration()         <span class="code-comment"># Charge settings.json + config + secteurs</span>
+    initialize_services()        <span class="code-comment"># Init data_provider + catalyst_analyzer</span>
+    is_market_open()             <span class="code-comment"># Vérifie heures marché US (9h30-16h EST)</span>
+    scan_symbol()                <span class="code-comment"># ⚡ Core: analyse 1 symbole avec cache</span>
+    should_alert_signal()        <span class="code-comment"># Applique filtres configurés</span>
+    display_alert()              <span class="code-comment"># Affiche alerte formatée</span>
+    scan_all_symbols()           <span class="code-comment"># Boucle sur tous les symboles</span>
+    run_continuous_scan()        <span class="code-comment"># 🔄 Scan continu avec refresh</span>
+    cleanup_old_alerts()         <span class="code-comment"># Nettoie alertes >24h</span>
+
+def detect_scanner_breakouts():  <span class="code-comment"># Détecte breakouts S/R</span>
         </div>
 
         <h3>Caractéristiques :</h3>
         <ul>
             <li>🔇 <strong>Mode silencieux par défaut</strong> (<code>alerts_only: true</code>)</li>
-            <li>💾 <strong>Utilise le cache intelligent</strong> pour éviter recalculs</li>
+            <li>💾 <strong>Utilise le cache intelligent</strong> via get_latest_data_with_cached_levels()</li>
             <li>⚡ <strong>Optimisé multi-symboles</strong> : peut gérer 50+ actions</li>
-            <li>🕐 <strong>Respecte heures de marché</strong> : analyse uniquement si ouvert</li>
+            <li>🕐 <strong>Respecte heures de marché</strong> : 9h30-16h EST, Lun-Ven uniquement</li>
             <li>📊 <strong>Même détecteur</strong> : utilise catalyst_analyzer.py</li>
+            <li>🚫 <strong>Anti-doublons</strong> : cooldown 30min (technique) / 2h (catalyst)</li>
+            <li>🎯 <strong>Filtrage intelligent</strong> : profils configurables dans settings.json</li>
         </ul>
 
         <h3>Utilisation :</h3>
@@ -1168,10 +1204,10 @@ nano sector_mapping.txt
         </div>
 
         <footer style="text-align: center; margin-top: 40px; padding: 20px; border-top: 2px solid #ddd; color: #666;">
-            <p>📚 Documentation mise à jour le 08/11/2025</p>
-            <p>📊 Stock Screener - Version 3.1</p>
+            <p>📚 Documentation mise à jour le 09/11/2025</p>
+            <p>📊 Stock Screener - Version 3.2</p>
             <p>⚡ Dual-mode (Backtest: Yahoo+CSV cache | Réel: IBKR direct)</p>
-            <p>✨ Nouveau : Système de cache CSV pour backtests ultra-rapides</p>
+            <p>✨ Nouveau : Cache S/R intelligent (TTL 4h) + Anti-doublons + Filtrage avancé</p>
         </footer>
     </div>
 </body>
