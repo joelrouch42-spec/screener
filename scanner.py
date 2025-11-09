@@ -263,8 +263,13 @@ class StockScanner:
             debug_mode = not self.alerts_only
 
             # Déterminer le mode : replay_mode = backtest_mode
-            backtest_mode = self.settings.get('debug', {}).get('replay_mode', True)
+            debug_section = self.settings.get('debug', {})
+            replay_mode = debug_section.get('replay_mode', True)
+            backtest_mode = replay_mode
 
+            # DEBUG: Afficher ce qui est lu
+            print(f"🔍 DEBUG settings['debug'] = {debug_section}")
+            print(f"🔍 DEBUG replay_mode = {replay_mode}")
             print(f"🔧 SCANNER: Initializing with backtest_mode={backtest_mode}, debug={debug_mode}")
 
             self.data_provider = MultiSourceDataProvider(backtest_mode=backtest_mode, debug=debug_mode)

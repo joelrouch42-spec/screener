@@ -25,9 +25,17 @@ def load_settings(settings_file: str = 'settings.json') -> Dict:
     }
     
     try:
+        # Obtenir le chemin absolu pour debug
+        abs_path = os.path.abspath(settings_file)
+        print(f"🔍 DEBUG: Loading settings from: {abs_path}")
+
         with open(settings_file, 'r', encoding='utf-8') as f:
             settings = json.load(f)
             logger.info(f"✅ Settings chargés depuis {settings_file}")
+
+            # DEBUG: Afficher la section debug
+            if 'debug' in settings:
+                print(f"🔍 DEBUG: settings.json contains debug section: {settings['debug']}")
             return settings
     except FileNotFoundError:
         logger.warning(f"⚠️  {settings_file} introuvable, utilisation valeurs par défaut")
