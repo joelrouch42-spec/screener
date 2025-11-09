@@ -63,9 +63,9 @@
     "description": "Contrôle des printouts - alerts_only=true pour voir que les alertes et erreurs"
   },
   "debug": {
-    "candle_offset": 10,
-    "replay_mode": true,
-    "description": "candle_offset: 0=dernière bougie, 1=avant-dernière, 2=il y a 2 bougies, etc. replay_mode active le mode debug"
+    "candle_offset": 0,
+    "replay_mode": false,
+    "description": "candle_offset: 0=dernière bougie, 1=avant-dernière, 2=il y a 2 bougies, etc. replay_mode=false utilise IBKR en temps réel"
   },
   "signal_filters": {
     "active_profile": "no_filters",
