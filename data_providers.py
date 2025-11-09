@@ -282,6 +282,7 @@ class MultiSourceDataProvider:
     """
 
     def __init__(self, backtest_mode=True, polygon_key=None, alphavantage_key=None, debug=False):
+        print(f"🔧 MultiSourceDataProvider.__init__ appelé avec backtest_mode={backtest_mode}")
         self.debug = debug
         self.backtest_mode = backtest_mode
         self.providers = []
