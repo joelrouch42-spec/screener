@@ -58,10 +58,15 @@ def load_from_cache(symbol: str, days: int = 150) -> pd.DataFrame:
     Returns:
         DataFrame ou None si pas de cache valide
     """
+    print(f"🔍 DEBUG: Looking for cache file for {symbol} (need {days} days)")
+
     # Chercher le fichier cache le plus récent
     cache_file = find_latest_cache(symbol)
 
+    print(f"🔍 DEBUG: find_latest_cache returned: {cache_file}")
+
     if not cache_file or not cache_file.exists():
+        print(f"🔍 DEBUG: No cache file found for {symbol}")
         return None
 
     try:
@@ -70,12 +75,16 @@ def load_from_cache(symbol: str, days: int = 150) -> pd.DataFrame:
         file_date_str = filename.split('_')[0]  # Extraire YYYY-MM-DD
         today_str = datetime.now().strftime('%Y-%m-%d')
 
+        print(f"🔍 DEBUG: File date: {file_date_str}, Today: {today_str}, Match: {file_date_str == today_str}")
+
         # Vérifier si le fichier est daté d'aujourd'hui
         if file_date_str != today_str:
             print(f"📅 Cache obsolète pour {symbol}: fichier du {file_date_str}, aujourd'hui {today_str}")
             return None
 
         df = pd.read_csv(cache_file, index_col=0, parse_dates=True)
+
+        print(f"🔍 DEBUG: Loaded {len(df)} rows from cache")
 
         # Vérifier que le cache a assez de données
         if len(df) < days:
@@ -87,6 +96,8 @@ def load_from_cache(symbol: str, days: int = 150) -> pd.DataFrame:
 
     except Exception as e:
         print(f"❌ Erreur lecture cache {symbol}: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 
