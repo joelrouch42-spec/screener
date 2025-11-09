@@ -352,7 +352,8 @@ class MultiSourceDataProvider:
         """
         # MODE BACKTEST : Essayer cache CSV d'abord
         if self.backtest_mode:
-            cached_df = load_from_cache(symbol, days)
+            # Check cache with period requirement (not days, since Yahoo may return less)
+            cached_df = load_from_cache(symbol, period)
             if cached_df is not None:
                 # Cache hit ! Retourner directement
                 print(f"⏭️  SKIPPED download for {symbol}: using cached data from today")
